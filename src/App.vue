@@ -58,10 +58,11 @@ const selectedPasses = computed(() => {
   )
 })
 
-const satelliteOptions = computed(() => [
-  '全部卫星',
-  ...new Set((orbitPayload.value?.items ?? []).map((item) => item.satellite)),
-])
+const satelliteOptions = computed(() => {
+  const reservoirId = selected.value?.properties.id
+  const passes = (orbitPayload.value?.items ?? []).filter((item) => item.reservoir_id === reservoirId)
+  return ['全部卫星', ...new Set(passes.map((item) => item.satellite))]
+})
 
 const recommendations = computed(() => selectedPasses.value.map((item) => buildExperimentRecommendation(
   item,
@@ -101,7 +102,7 @@ function scrollSatelliteFilters(direction: number) {
 }
 
 function scrollFiltersWithWheel(event: WheelEvent) {
-  const strip = satelliteFilterStrip.value
+  const strip = event.currentTarget as HTMLDivElement | null
   if (!strip || Math.abs(event.deltaY) <= Math.abs(event.deltaX)) return
   const atStart = strip.scrollLeft <= 0
   const atEnd = strip.scrollLeft + strip.clientWidth >= strip.scrollWidth - 1
@@ -323,6 +324,9 @@ onBeforeUnmount(() => {
           <div class="thresholds">
             <SlidersHorizontal :size="15" /><label>云量≤<input v-model.number="maxCloud" type="number" min="0" max="100" />%</label><label>降水≤<input v-model.number="maxRain" type="number" min="0" max="100" />%</label><label>风速≤<input v-model.number="maxWind" type="number" min="1" max="20" />m/s</label>
           </div>
+          <div class="satellite-filters recommendation-satellite-filters" aria-label="筛选推荐卫星" @wheel="scrollFiltersWithWheel">
+            <button v-for="name in satelliteOptions" :key="name" :class="{ active: selectedSatellite === name }" :aria-pressed="selectedSatellite === name" @click="selectedSatellite = name">{{ name }}</button>
+          </div>
           <div v-if="weatherLoading" class="inline-state"><RefreshCw class="spin" :size="17" />正在读取逐小时天气</div>
           <div v-else-if="weatherError" class="inline-state error"><CircleAlert :size="17" />{{ weatherError }}<button @click="loadSelectedWeather">重试</button></div>
           <div v-else-if="bestRecommendations.length" class="recommendation-grid">
@@ -349,7 +353,7 @@ onBeforeUnmount(() => {
         <section class="panel-section windows-section">
           <div class="section-heading"><div><p class="eyebrow">WEATHER × ORBIT</p><h3>全部联合判断</h3></div><div class="section-heading-actions"><span>{{ selectedPasses.length }}个窗口</span><div class="scroll-buttons"><button aria-label="向左查看卫星" @click="scrollSatelliteFilters(-1)"><ChevronLeft :size="16" /></button><button aria-label="向右查看卫星" @click="scrollSatelliteFilters(1)"><ChevronRight :size="16" /></button></div></div></div>
           <div ref="satelliteFilterStrip" class="satellite-filters" @wheel="scrollFiltersWithWheel">
-            <button v-for="name in satelliteOptions" :key="name" :class="{ active: selectedSatellite === name }" @click="selectedSatellite = name">{{ name }}</button>
+            <button v-for="name in satelliteOptions" :key="name" :class="{ active: selectedSatellite === name }" :aria-pressed="selectedSatellite === name" @click="selectedSatellite = name">{{ name }}</button>
           </div>
           <div class="window-list">
             <article v-for="item in recommendations" :key="item.satellitePass.id" class="window-row">
