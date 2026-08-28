@@ -2,9 +2,10 @@
 .gitignore
 .env
 .env.*
-!.env.production.example
 .venv
 .tools
+.wrangler
+.pytest_cache
 node_modules
 dist
 backend/data/*
@@ -14,4 +15,4 @@ data
 *.docx
 *.bat
 *.log
-开发上下文记录.md
+docs

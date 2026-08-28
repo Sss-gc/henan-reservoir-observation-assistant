@@ -49,7 +49,7 @@ def main() -> None:
     else:
         target = args.database.resolve() if args.database else current_database_path()
         if target == current_database_path() and _backend_is_running():
-            parser.error("网站后端仍在运行。请先双击“停止网站.bat”，再执行恢复。")
+            parser.error("网站后端仍在运行。请先双击“ops\\windows\\停止网站.bat”，再执行恢复。")
         result = restore_database_backup(
             args.backup,
             target,

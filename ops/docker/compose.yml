@@ -9,8 +9,8 @@ x-default-logging: &default-logging
 services:
   backend:
     build:
-      context: .
-      dockerfile: deploy/docker/backend.Dockerfile
+      context: ../..
+      dockerfile: ops/docker/backend.Dockerfile
     restart: unless-stopped
     logging: *default-logging
     environment:
@@ -35,8 +35,8 @@ services:
 
   web:
     build:
-      context: .
-      dockerfile: deploy/docker/frontend.Dockerfile
+      context: ../..
+      dockerfile: ops/docker/frontend.Dockerfile
     restart: unless-stopped
     logging: *default-logging
     environment:

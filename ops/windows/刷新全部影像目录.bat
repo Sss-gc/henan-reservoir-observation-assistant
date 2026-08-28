@@ -1,7 +1,8 @@
 @echo off
 chcp 65001 >nul
-cd /d "%~dp0"
-set "PYTHON=%~dp0.venv\Scripts\python.exe"
+set "PROJECT_ROOT=%~dp0..\.."
+cd /d "%PROJECT_ROOT%"
+set "PYTHON=%PROJECT_ROOT%\.venv\Scripts\python.exe"
 
 if not exist "%PYTHON%" (
   echo 未找到后端 Python 环境：%PYTHON%

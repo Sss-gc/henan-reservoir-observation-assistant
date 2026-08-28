@@ -80,8 +80,9 @@ pnpm build
 | Build output directory | `dist` |
 | Root directory | `/` |
 | Node.js | `22` |
+| Production variable | `VITE_TIANDITU_KEY`（天地图浏览器端 key） |
 
-无需配置天气或卫星密钥。部署后检查：
+天气和轨道计算无需额外密钥；生产页面需配置绑定站点域名的天地图浏览器端 key。部署后检查：
 
 - `/`：地图、天气、过境与联合推荐页面。
 - `/api/health`：应返回 `status: ok`。
@@ -100,7 +101,10 @@ backend/app/tasks/export_static_observations.py  静态轨道导出器
 backend/requirements-orbit.txt            GitHub Actions 最小 Python 依赖
 scripts/validate_static_observations.py    静态数据校验
 .github/workflows/                         自动测试和每日轨道刷新
-开发上下文记录.md                          完整开发进度、验证和剩余事项
+docs/                                      项目文档与原始方案归档
+ops/docker/                                Docker自托管配置与说明
+ops/windows/                               Windows本地维护快捷脚本
+docs/开发上下文记录.md                     完整开发进度、验证和剩余事项
 ```
 
 ## 数据与安全

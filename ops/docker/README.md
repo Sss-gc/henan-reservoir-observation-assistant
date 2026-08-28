@@ -1,5 +1,11 @@
 # 生产部署说明
 
+本目录保存可选的旧版 Docker/FastAPI 自托管方案；当前公开站点使用 GitHub + Cloudflare Pages。以下命令均从本目录执行：
+
+```bash
+cd ops/docker
+```
+
 部署采用两个容器：`web`负责Vue静态文件和Nginx反向代理，`backend`负责FastAPI、定时任务和SQLite。数据库、管理员密钥与预览缓存保存在命名卷`henan_reservoir_backend_data`中，更新镜像不会覆盖这些数据。
 
 ## 前提
