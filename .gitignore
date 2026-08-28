@@ -1,0 +1,14 @@
+node_modules/
+dist/
+.tools/
+.venv/
+.wrangler/
+.pytest_cache/
+__pycache__/
+*.py[cod]
+*.tsbuildinfo
+backend/data/
+*.log
+.env
+.env.local
+*.docx

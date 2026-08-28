@@ -1,0 +1,57 @@
+name: henan-reservoir-observer
+
+x-default-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: deploy/docker/backend.Dockerfile
+    restart: unless-stopped
+    logging: *default-logging
+    environment:
+      DATABASE_URL: sqlite:////app/backend/data/reservoir-observer.db
+      ADMIN_API_KEY: ${ADMIN_API_KEY:-}
+      SCHEDULER_ENABLED: ${SCHEDULER_ENABLED:-true}
+      SCHEDULER_IMAGERY_DAYS: ${SCHEDULER_IMAGERY_DAYS:-90}
+      SCHEDULER_IMAGERY_LIMIT: ${SCHEDULER_IMAGERY_LIMIT:-500}
+      CORS_ORIGINS: https://${DOMAIN_NAME:-localhost},http://${DOMAIN_NAME:-localhost},http://localhost:8080
+    volumes:
+      - backend_data:/app/backend/data
+    expose:
+      - "8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/v1/health', timeout=3)"]
+      interval: 20s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
+    networks:
+      - app_network
+
+  web:
+    build:
+      context: .
+      dockerfile: deploy/docker/frontend.Dockerfile
+    restart: unless-stopped
+    logging: *default-logging
+    environment:
+      SERVER_NAME: ${DOMAIN_NAME:-_}
+      NGINX_ENVSUBST_FILTER: SERVER_NAME
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - app_network
+
+volumes:
+  backend_data:
+    name: henan_reservoir_backend_data
+
+networks:
+  app_network:
+    name: henan_reservoir_network

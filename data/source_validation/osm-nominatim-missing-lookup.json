@@ -1,0 +1,37 @@
+{
+  "place_id": 220709467,
+  "licence": "Data © OpenStreetMap contributors, ODbL 1.0. http://osm.org/copyright",
+  "osm_type": "way",
+  "osm_id": 1056526139,
+  "lat": "32.2715123",
+  "lon": "113.9412586",
+  "class": "water",
+  "type": "reservoir",
+  "place_rank": 20,
+  "importance": 0.133367192339971,
+  "addresstype": "reservoir",
+  "name": "出山店水库",
+  "display_name": "出山店水库, 吴家店镇, 浉河区, 信阳市, 河南省, 中国",
+  "address": {
+    "reservoir": "出山店水库",
+    "town": "吴家店镇",
+    "district": "浉河区",
+    "region": "信阳市",
+    "state": "河南省",
+    "ISO3166-2-lvl4": "CN-HA",
+    "country": "中国",
+    "country_code": "cn"
+  },
+  "extratags": {
+    "natural": "water"
+  },
+  "namedetails": {
+    "name": "出山店水库"
+  },
+  "boundingbox": [
+    "32.2197253",
+    "32.3233135",
+    "113.8518786",
+    "113.9692120"
+  ]
+}

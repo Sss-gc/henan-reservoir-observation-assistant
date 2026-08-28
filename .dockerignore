@@ -1,0 +1,17 @@
+.git
+.gitignore
+.env
+.env.*
+!.env.production.example
+.venv
+.tools
+node_modules
+dist
+backend/data/*
+backend/**/__pycache__
+backend/**/*.pyc
+data
+*.docx
+*.bat
+*.log
+开发上下文记录.md

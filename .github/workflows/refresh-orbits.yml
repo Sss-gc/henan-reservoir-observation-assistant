@@ -1,0 +1,52 @@
+name: Refresh satellite observation windows
+
+on:
+  schedule:
+    - cron: "15 18 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: refresh-static-orbits
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/requirements-orbit.txt
+
+      - name: Install orbit calculation dependencies
+        run: python -m pip install -r backend/requirements-orbit.txt
+
+      - name: Recalculate 30-day full-coverage windows
+        env:
+          DATABASE_URL: sqlite:///backend/data/github-actions-orbits.db
+          SCHEDULER_ENABLED: "false"
+        run: python -m backend.app.tasks.export_static_observations --days 30 --force
+
+      - name: Validate generated observations
+        run: python scripts/validate_static_observations.py
+
+      - name: Commit refreshed data
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add public/data/orbit-passes.json
+          if git diff --cached --quiet; then
+            echo "No orbit data changes"
+          else
+            git commit -m "data: refresh satellite observation windows"
+            git push
+          fi
