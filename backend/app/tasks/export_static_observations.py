@@ -61,13 +61,19 @@ def build_static_payload(db: Session, days: int = 30) -> dict[str, Any]:
                 "coverage_method": record.coverage_method,
                 "element_epoch": record.element_epoch.isoformat() + "Z",
                 "confidence": record.confidence,
+                "solar_elevation_deg": record.solar_elevation_deg,
+                "solar_azimuth_deg": record.solar_azimuth_deg,
+                "satellite_elevation_deg": record.satellite_elevation_deg,
+                "satellite_azimuth_deg": record.satellite_azimuth_deg,
+                "glint_angle_deg": record.glint_angle_deg,
+                "glint_risk": record.glint_risk,
                 "is_imaging_confirmed": False,
             }
         )
     reservoirs = reservoir_collection()["features"]
     covered = {item["reservoir_id"] for item in items}
     return {
-        "schema_version": "static-observation-v1",
+        "schema_version": "static-observation-v2",
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "timezone": "Asia/Shanghai",
         "forecast_days": days,
@@ -75,8 +81,10 @@ def build_static_payload(db: Session, days: int = 30) -> dict[str, Any]:
         "element_epoch_latest": latest_epoch.isoformat() + "Z" if latest_epoch else None,
         "coverage_rule": "daylight solar elevation > 10 degrees and reservoir polygon coverage >= 99.9%",
         "coverage_method": "ground-track-swath/polygon-intersection-v2",
+        "glint_method": "flat-water specular reflection from NOAA solar direction and SGP4 satellite view geometry",
+        "glint_thresholds_deg": {"high": 10, "medium": 20, "low": 40},
         "is_imaging_confirmed": False,
-        "warning": "仅表示轨道和传感器幅宽可完整覆盖水库，不代表卫星运营方已确认或排程成像。",
+        "warning": "仅表示轨道和传感器幅宽可完整覆盖水库；耀光为平静水平水面的几何风险估计，实际强度受风浪影响；不代表卫星运营方已确认或排程成像。",
         "reservoir_count": len(reservoirs),
         "reservoirs_with_passes": len(covered),
         "item_count": len(items),

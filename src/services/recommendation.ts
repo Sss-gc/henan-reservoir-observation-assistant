@@ -28,17 +28,23 @@ export function buildExperimentRecommendation(
       weatherHour: hour,
       score: null,
       level: '待预报',
-      reasons: ['超出未来16天天气预报范围'],
+      reasons: [
+        '超出未来16天天气预报范围',
+        `耀光${{ high: '高', medium: '中', low: '低', minimal: '极低' }[pass.glint_risk]}风险 ${pass.glint_angle_deg.toFixed(1)}°`,
+      ],
     }
   }
+  const glintPenalty = { high: 35, medium: 20, low: 6, minimal: 0 }[pass.glint_risk]
   const score = Math.max(0, Math.round(
     100 - hour.cloudCover * 0.5 - hour.precipitationProbability * 0.25
-    - hour.precipitation * 10 - Math.max(0, hour.windSpeed - 2) * 8,
+    - hour.precipitation * 10 - Math.max(0, hour.windSpeed - 2) * 8 - glintPenalty,
   ))
   const strict = hour.cloudCover <= thresholds.maxCloud
     && hour.precipitationProbability <= thresholds.maxRainProbability
     && hour.precipitation <= 0.2
     && hour.windSpeed <= thresholds.maxWind
+    && pass.glint_risk !== 'high'
+    && pass.glint_risk !== 'medium'
   const level = strict && score >= 75 ? '推荐' : score >= 55 ? '备选' : '不推荐'
   return {
     satellitePass: pass,
@@ -50,6 +56,7 @@ export function buildExperimentRecommendation(
       `过境云量${Math.round(hour.cloudCover)}%`,
       `降水概率${Math.round(hour.precipitationProbability)}%`,
       `风速${hour.windSpeed.toFixed(1)}m/s`,
+      `耀光${{ high: '高', medium: '中', low: '低', minimal: '极低' }[pass.glint_risk]}风险 ${pass.glint_angle_deg.toFixed(1)}°`,
     ],
   }
 }

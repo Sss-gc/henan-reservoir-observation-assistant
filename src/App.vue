@@ -93,6 +93,10 @@ function formatTimestamp(value?: string | null) {
   }).format(new Date(value))
 }
 
+function glintLabel(risk: 'high' | 'medium' | 'low' | 'minimal') {
+  return { high: '高', medium: '中', low: '低', minimal: '极低' }[risk]
+}
+
 function scrollWeather(direction: number) {
   weatherStrip.value?.scrollBy({ left: direction * 360, behavior: 'smooth' })
 }
@@ -317,12 +321,12 @@ onBeforeUnmount(() => {
           <div class="data-freshness"><span>轨道生成 {{ formatTimestamp(orbitPayload?.generated_at) }}</span><span>轨道历元 {{ formatTimestamp(orbitPayload?.element_epoch_latest) }}</span></div>
         </section>
 
-        <section class="notice"><CircleAlert :size="16" /><p>窗口表示轨道和幅宽可完整覆盖水库，不代表卫星运营方已确认成像。天气预报存在不确定性，出发前请再次核验。</p></section>
+        <section class="notice"><CircleAlert :size="16" /><p>窗口表示轨道和幅宽可完整覆盖水库，不代表卫星运营方已确认成像。耀光按太阳—平静水面—卫星镜面反射几何估算，中高风险窗口已从“推荐”中排除；风浪与实际姿态仍会改变结果，出发前请再次核验。</p></section>
 
         <section class="panel-section recommendation-section">
           <div class="section-heading"><div><p class="eyebrow">BEST WINDOWS</p><h3>推荐实验日期</h3></div><span>{{ bestRecommendations.length }}个推荐</span></div>
           <div class="thresholds">
-            <SlidersHorizontal :size="15" /><label>云量≤<input v-model.number="maxCloud" type="number" min="0" max="100" />%</label><label>降水≤<input v-model.number="maxRain" type="number" min="0" max="100" />%</label><label>风速≤<input v-model.number="maxWind" type="number" min="1" max="20" />m/s</label>
+            <SlidersHorizontal :size="15" /><label>云量≤<input v-model.number="maxCloud" type="number" min="0" max="100" />%</label><label>降水≤<input v-model.number="maxRain" type="number" min="0" max="100" />%</label><label>风速≤<input v-model.number="maxWind" type="number" min="1" max="20" />m/s</label><span class="glint-rule">自动避开中高耀光</span>
           </div>
           <div class="satellite-filters recommendation-satellite-filters" aria-label="筛选推荐卫星" @wheel="scrollFiltersWithWheel">
             <button v-for="name in satelliteOptions" :key="name" :class="{ active: selectedSatellite === name }" :aria-pressed="selectedSatellite === name" @click="selectedSatellite = name">{{ name }}</button>
@@ -333,7 +337,7 @@ onBeforeUnmount(() => {
             <article v-for="item in bestRecommendations" :key="item.satellitePass.id" class="recommendation-card">
               <div class="recommendation-date"><strong>{{ formatDate(item.satellitePass.date) }}</strong><span>{{ item.satellitePass.time }} 北京时间</span></div>
               <b class="score">{{ item.score }}</b>
-              <div class="recommendation-satellite"><Satellite :size="15" />{{ item.satellitePass.satellite }}<span>完整覆盖</span></div>
+              <div class="recommendation-satellite"><Satellite :size="15" />{{ item.satellitePass.satellite }}<span class="coverage-badge">完整覆盖</span><span class="glint-badge" :class="`glint-${item.satellitePass.glint_risk}`">耀光{{ glintLabel(item.satellitePass.glint_risk) }}</span></div>
               <p>{{ item.reasons.join(' · ') }}</p>
             </article>
           </div>
@@ -358,13 +362,13 @@ onBeforeUnmount(() => {
           <div class="window-list">
             <article v-for="item in recommendations" :key="item.satellitePass.id" class="window-row">
               <div class="window-date"><strong>{{ formatDate(item.satellitePass.date) }}</strong><span>{{ item.satellitePass.time }}</span></div>
-              <div class="window-main"><strong>{{ item.satellitePass.satellite }}</strong><span v-if="item.weatherHour">过境云量{{ Math.round(item.weatherHour.cloudCover) }}% · 降水{{ Math.round(item.weatherHour.precipitationProbability) }}% · 风{{ item.weatherHour.windSpeed.toFixed(1) }}m/s</span><span v-else>完整覆盖 · 天气尚未发布</span></div>
+              <div class="window-main"><strong>{{ item.satellitePass.satellite }} <em class="glint-inline" :class="`glint-${item.satellitePass.glint_risk}`">耀光{{ glintLabel(item.satellitePass.glint_risk) }} {{ item.satellitePass.glint_angle_deg.toFixed(1) }}°</em></strong><span v-if="item.weatherHour">过境云量{{ Math.round(item.weatherHour.cloudCover) }}% · 降水{{ Math.round(item.weatherHour.precipitationProbability) }}% · 风{{ item.weatherHour.windSpeed.toFixed(1) }}m/s</span><span v-else>完整覆盖 · 天气尚未发布</span></div>
               <div class="window-score" :class="item.level"><b>{{ item.score ?? '—' }}</b><span>{{ item.level }}</span></div>
             </article>
           </div>
         </section>
 
-        <footer><CalendarCheck :size="14" />天气按过境时刻附近的逐小时预报匹配 · 所有时间均为北京时间</footer>
+        <footer><CalendarCheck :size="14" />天气按过境时刻附近的逐小时预报匹配 · 耀光角越小风险越高 · 所有时间均为北京时间</footer>
       </aside>
     </div>
   </main>

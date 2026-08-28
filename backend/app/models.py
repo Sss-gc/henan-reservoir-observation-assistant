@@ -68,6 +68,12 @@ class SatellitePassRecord(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, index=True)
     confidence: Mapped[str] = mapped_column(String(8), nullable=False, default="B")
     coverage_method: Mapped[str] = mapped_column(String(64), nullable=False)
+    solar_elevation_deg: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    solar_azimuth_deg: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    satellite_elevation_deg: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    satellite_azimuth_deg: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    glint_angle_deg: Mapped[float] = mapped_column(Float, nullable=False, default=180.0)
+    glint_risk: Mapped[str] = mapped_column(String(16), nullable=False, default="minimal")
 
 
 class ImageryProduct(Base):

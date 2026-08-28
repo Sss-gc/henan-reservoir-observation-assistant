@@ -42,6 +42,12 @@ def test_static_export_contains_only_future_operational_passes() -> None:
                 created_at=now,
                 confidence="B",
                 coverage_method="ground-track-swath/polygon-intersection-v2",
+                solar_elevation_deg=52.1,
+                solar_azimuth_deg=145.2,
+                satellite_elevation_deg=76.4,
+                satellite_azimuth_deg=342.8,
+                glint_angle_deg=48.3,
+                glint_risk="minimal",
             )
         )
         db.commit()
@@ -49,4 +55,7 @@ def test_static_export_contains_only_future_operational_passes() -> None:
     assert payload["item_count"] == 1
     assert payload["items"][0]["coverage"] == 100
     assert payload["items"][0]["is_imaging_confirmed"] is False
+    assert payload["items"][0]["glint_angle_deg"] == 48.3
+    assert payload["items"][0]["glint_risk"] == "minimal"
+    assert payload["schema_version"] == "static-observation-v2"
     assert payload["is_imaging_confirmed"] is False

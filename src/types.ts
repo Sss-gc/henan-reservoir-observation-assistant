@@ -62,6 +62,12 @@ export interface SatellitePass {
   min_distance_km: number
   coverage_method: string
   element_epoch: string
+  solar_elevation_deg: number
+  solar_azimuth_deg: number
+  satellite_elevation_deg: number
+  satellite_azimuth_deg: number
+  glint_angle_deg: number
+  glint_risk: 'high' | 'medium' | 'low' | 'minimal'
   is_imaging_confirmed: false
 }
 
@@ -74,6 +80,8 @@ export interface OrbitPassPayload {
   element_epoch_latest: string | null
   coverage_rule: string
   coverage_method: string
+  glint_method: string
+  glint_thresholds_deg: { high: number; medium: number; low: number }
   is_imaging_confirmed: false
   warning: string
   reservoir_count: number

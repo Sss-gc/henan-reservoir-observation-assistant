@@ -17,11 +17,18 @@ def main() -> None:
     items = passes.get("items", [])
     assert items, "orbit-passes.json不能为空"
     assert passes["is_imaging_confirmed"] is False
+    assert passes["schema_version"] == "static-observation-v2"
     assert passes["reservoirs_with_passes"] == len({item["reservoir_id"] for item in items})
     for item in items:
         assert item["reservoir_id"] in reservoir_ids
         assert item["coverage"] >= 99.9
         assert item["is_imaging_confirmed"] is False
+        assert 0 <= item["solar_elevation_deg"] <= 90
+        assert 0 <= item["solar_azimuth_deg"] < 360
+        assert -90 <= item["satellite_elevation_deg"] <= 90
+        assert 0 <= item["satellite_azimuth_deg"] < 360
+        assert 0 <= item["glint_angle_deg"] <= 180
+        assert item["glint_risk"] in {"high", "medium", "low", "minimal"}
         datetime.fromisoformat(item["time_utc"].replace("Z", "+00:00"))
         assert len(item["time"]) == 5
     print(

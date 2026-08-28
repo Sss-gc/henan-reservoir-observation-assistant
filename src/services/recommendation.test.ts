@@ -7,6 +7,8 @@ const satellitePass: SatellitePass = {
   timezone: 'Asia/Shanghai', time_utc: '2026-09-01T02:25:00Z', satellite: 'Sentinel-2A',
   sensor: 'MSI', resolution_m: 10, swath_km: 290, confidence: 'B', coverage: 100,
   min_distance_km: 2, coverage_method: 'polygon-intersection', element_epoch: '2026-08-28T00:00:00Z',
+  solar_elevation_deg: 55, solar_azimuth_deg: 150, satellite_elevation_deg: 80,
+  satellite_azimuth_deg: 350, glint_angle_deg: 55, glint_risk: 'minimal',
   is_imaging_confirmed: false,
 }
 
@@ -44,5 +46,12 @@ describe('experiment recommendation', () => {
   it('rejects high-risk weather', () => {
     const result = buildExperimentRecommendation(satellitePass, weather(95, 90, 12), thresholds)
     expect(result.level).toBe('不推荐')
+  })
+
+  it('downgrades a geometrically high-risk sunglint window', () => {
+    const glintPass = { ...satellitePass, glint_angle_deg: 6, glint_risk: 'high' as const }
+    const result = buildExperimentRecommendation(glintPass, weather(0, 0, 2), thresholds)
+    expect(result.level).not.toBe('推荐')
+    expect(result.reasons.at(-1)).toContain('耀光高风险')
   })
 })

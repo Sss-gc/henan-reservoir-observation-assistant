@@ -117,8 +117,10 @@ def _groups(indices: np.ndarray) -> list[np.ndarray]:
     return np.split(indices, np.where(np.diff(indices) > 1)[0] + 1)
 
 
-def _solar_elevation_deg(moment: datetime, latitude: float, longitude: float) -> float:
-    """NOAA fractional-year approximation; sufficient for a daylight gate."""
+def _solar_direction_enu(
+    moment: datetime, latitude: float, longitude: float
+) -> tuple[float, float, np.ndarray]:
+    """Return NOAA-approximate solar elevation, azimuth and local ENU unit vector."""
     aware = moment.replace(tzinfo=timezone.utc)
     day = aware.timetuple().tm_yday
     hour = aware.hour + aware.minute / 60 + aware.second / 3600
@@ -135,11 +137,70 @@ def _solar_elevation_deg(moment: datetime, latitude: float, longitude: float) ->
     true_solar_minutes = (hour * 60 + equation_of_time + 4 * longitude) % 1440
     hour_angle = math.radians(true_solar_minutes / 4 - 180)
     lat_rad = math.radians(latitude)
-    cosine_zenith = (
+    up = (
         math.sin(lat_rad) * math.sin(declination)
         + math.cos(lat_rad) * math.cos(declination) * math.cos(hour_angle)
     )
-    return 90 - math.degrees(math.acos(max(-1.0, min(1.0, cosine_zenith))))
+    east = -math.cos(declination) * math.sin(hour_angle)
+    north = (
+        math.cos(lat_rad) * math.sin(declination)
+        - math.sin(lat_rad) * math.cos(declination) * math.cos(hour_angle)
+    )
+    vector = np.asarray([east, north, up], dtype=float)
+    vector /= np.linalg.norm(vector)
+    elevation = math.degrees(math.asin(max(-1.0, min(1.0, float(vector[2])))))
+    azimuth = math.degrees(math.atan2(float(vector[0]), float(vector[1]))) % 360.0
+    return elevation, azimuth, vector
+
+
+def _glint_risk(angle_deg: float) -> str:
+    """Conservative tiers inside NASA's commonly used 40-degree glint region."""
+    if angle_deg < 10.0:
+        return "high"
+    if angle_deg < 20.0:
+        return "medium"
+    if angle_deg < 40.0:
+        return "low"
+    return "minimal"
+
+
+def _glint_geometry(
+    satellite_object: EarthSatellite,
+    skyfield_time: Any,
+    moment: datetime,
+    latitude: float,
+    longitude: float,
+) -> dict[str, float | str]:
+    """Estimate flat-water specular geometry at a reservoir in local ENU coordinates."""
+    solar_elevation, solar_azimuth, sun_vector = _solar_direction_enu(
+        moment, latitude, longitude
+    )
+    observer = wgs84.latlon(latitude, longitude)
+    altitude, azimuth, _ = (satellite_object - observer).at(skyfield_time).altaz()
+    satellite_elevation = float(altitude.degrees)
+    satellite_azimuth = float(azimuth.degrees) % 360.0
+    elevation_rad = math.radians(satellite_elevation)
+    azimuth_rad = math.radians(satellite_azimuth)
+    view_vector = np.asarray(
+        [
+            math.cos(elevation_rad) * math.sin(azimuth_rad),
+            math.cos(elevation_rad) * math.cos(azimuth_rad),
+            math.sin(elevation_rad),
+        ],
+        dtype=float,
+    )
+    # A horizontal surface reverses the horizontal part of the incoming sun ray.
+    reflected_sun = np.asarray([-sun_vector[0], -sun_vector[1], sun_vector[2]])
+    cosine = float(np.clip(np.dot(reflected_sun, view_vector), -1.0, 1.0))
+    glint_angle = math.degrees(math.acos(cosine))
+    return {
+        "solar_elevation_deg": round(solar_elevation, 2),
+        "solar_azimuth_deg": round(solar_azimuth, 2),
+        "satellite_elevation_deg": round(satellite_elevation, 2),
+        "satellite_azimuth_deg": round(satellite_azimuth, 2),
+        "glint_angle_deg": round(glint_angle, 2),
+        "glint_risk": _glint_risk(glint_angle),
+    }
 
 
 def _predict_satellite(
@@ -159,7 +220,8 @@ def _predict_satellite(
     ]
     ts = load.timescale(builtin=True)
     satellite_object = EarthSatellite.from_omm(ts, omm)
-    positions = satellite_object.at(ts.from_datetimes(datetimes))
+    skyfield_times = ts.from_datetimes(datetimes)
+    positions = satellite_object.at(skyfield_times)
     subpoints = wgs84.subpoint_of(positions)
     lats = np.asarray(subpoints.latitude.degrees)
     lons = np.asarray(subpoints.longitude.degrees)
@@ -180,7 +242,14 @@ def _predict_satellite(
             center_index = int(group[np.argmin(distances[group])])
             minimum = float(distances[center_index])
             center = datetimes[center_index].replace(tzinfo=None)
-            if _solar_elevation_deg(center, float(props["lat"]), float(props["lon"])) <= 10.0:
+            glint = _glint_geometry(
+                satellite_object,
+                skyfield_times[center_index],
+                center,
+                float(props["lat"]),
+                float(props["lon"]),
+            )
+            if float(glint["solar_elevation_deg"]) <= 10.0:
                 continue
             track_start = max(0, center_index - 10)
             track_end = min(count, center_index + 11)
@@ -214,6 +283,7 @@ def _predict_satellite(
                     created_at=created_at,
                     confidence="B",
                     coverage_method="ground-track-swath/polygon-intersection-v2",
+                    **glint,
                 )
             )
             written += 1
@@ -335,8 +405,14 @@ def stored_passes(db: Session, reservoir_id: str, days: int) -> list[dict[str, A
             "min_distance_km": record.min_distance_km,
             "coverage_method": record.coverage_method,
             "element_epoch": record.element_epoch.isoformat() + "Z",
+            "solar_elevation_deg": record.solar_elevation_deg,
+            "solar_azimuth_deg": record.solar_azimuth_deg,
+            "satellite_elevation_deg": record.satellite_elevation_deg,
+            "satellite_azimuth_deg": record.satellite_azimuth_deg,
+            "glint_angle_deg": record.glint_angle_deg,
+            "glint_risk": record.glint_risk,
             "is_operational": True,
             "is_imaging_confirmed": False,
-            "warning": "已按太阳高度角>10°且完整水库几何覆盖率≥99.9%筛选；仅表示轨道与幅宽覆盖，不代表卫星已排程成像。",
+            "warning": "已按太阳高度角>10°且完整水库几何覆盖率≥99.9%筛选；耀光为平静水平水面的几何风险估计，不代表卫星已排程成像。",
         })
     return items
