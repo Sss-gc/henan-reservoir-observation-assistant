@@ -22,6 +22,7 @@ const loading = ref(true)
 const weatherLoading = ref(false)
 const loadError = ref('')
 const weatherError = ref('')
+const basemapStatus = ref<'loading' | 'tianditu' | 'osm' | 'unavailable'>('loading')
 const searchQuery = ref('')
 const selectedSatellite = ref('全部卫星')
 const listOpenOnMobile = ref(false)
@@ -33,7 +34,10 @@ const maxWind = ref(5)
 let weatherRequest = 0
 let map: L.Map | null = null
 let reservoirLayer: L.GeoJSON | null = null
+let activeBaseLayers: L.TileLayer[] = []
+let fallbackBoundaryLayer: L.LayerGroup | null = null
 const featureLayers = new Map<string, L.Layer>()
+const tiandituKey = import.meta.env.VITE_TIANDITU_KEY?.trim() ?? ''
 
 const filteredReservoirs = computed(() => {
   const keyword = searchQuery.value.trim().toLowerCase()
@@ -118,6 +122,78 @@ function refreshLayerStyles() {
   reservoirLayer?.setStyle((feature) => reservoirStyle(feature as ReservoirFeature))
 }
 
+function replaceBaseLayers(targetMap: L.Map, layers: L.TileLayer[]) {
+  activeBaseLayers.forEach((layer) => targetMap.removeLayer(layer))
+  activeBaseLayers = layers
+  layers.forEach((layer) => layer.addTo(targetMap))
+}
+
+async function showLocalBoundaryFallback(targetMap: L.Map) {
+  if (fallbackBoundaryLayer || map !== targetMap) return
+  try {
+    const [provinceResponse, citiesResponse] = await Promise.all([
+      fetch('/data/henan-boundary.geojson'), fetch('/data/henan-cities.geojson'),
+    ])
+    if (!provinceResponse.ok || !citiesResponse.ok || map !== targetMap) return
+    const [province, cities] = await Promise.all([provinceResponse.json(), citiesResponse.json()])
+    fallbackBoundaryLayer = L.layerGroup([
+      L.geoJSON(cities as GeoJsonObject, { style: { color: '#7899a8', weight: 1, opacity: 0.65, fillOpacity: 0 } }),
+      L.geoJSON(province as GeoJsonObject, { style: { color: '#fbbf24', weight: 2, opacity: 0.8, fillOpacity: 0 } }),
+    ]).addTo(targetMap)
+  } catch {
+    // Reservoir vectors remain usable even if the optional boundary fallback fails.
+  }
+}
+
+function addOpenStreetMap(targetMap: L.Map) {
+  let loaded = false
+  let errorCount = 0
+  const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 18, attribution: '&copy; OpenStreetMap contributors',
+  })
+  osm.on('tileload', () => {
+    loaded = true
+    basemapStatus.value = 'osm'
+  })
+  osm.on('tileerror', () => {
+    errorCount += 1
+    if (!loaded && errorCount >= 4) {
+      basemapStatus.value = 'unavailable'
+      void showLocalBoundaryFallback(targetMap)
+    }
+  })
+  replaceBaseLayers(targetMap, [osm])
+}
+
+function addConfiguredBasemap(targetMap: L.Map) {
+  if (!tiandituKey) {
+    addOpenStreetMap(targetMap)
+    return
+  }
+  const key = encodeURIComponent(tiandituKey)
+  let loaded = false
+  let errorCount = 0
+  let fallbackStarted = false
+  const vector = L.tileLayer(`https://t{s}.tianditu.gov.cn/vec_w/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=vec&STYLE=default&TILEMATRIXSET=w&FORMAT=tiles&TILECOL={x}&TILEROW={y}&TILEMATRIX={z}&tk=${key}`, {
+    subdomains: '01234567', maxZoom: 18, attribution: '&copy; 天地图',
+  })
+  const labels = L.tileLayer(`https://t{s}.tianditu.gov.cn/cva_w/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=cva&STYLE=default&TILEMATRIXSET=w&FORMAT=tiles&TILECOL={x}&TILEROW={y}&TILEMATRIX={z}&tk=${key}`, {
+    subdomains: '01234567', maxZoom: 18,
+  })
+  vector.on('tileload', () => {
+    loaded = true
+    basemapStatus.value = 'tianditu'
+  })
+  vector.on('tileerror', () => {
+    errorCount += 1
+    if (!loaded && errorCount >= 4 && !fallbackStarted) {
+      fallbackStarted = true
+      addOpenStreetMap(targetMap)
+    }
+  })
+  replaceBaseLayers(targetMap, [vector, labels])
+}
+
 async function loadSelectedWeather() {
   const feature = selected.value
   if (!feature) return
@@ -151,9 +227,7 @@ function initializeMap(collection: ReservoirCollection) {
   if (!mapElement.value) return
   map = L.map(mapElement.value, { zoomControl: false }).setView([34.2, 113.6], 7)
   L.control.zoom({ position: 'bottomright' }).addTo(map)
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    maxZoom: 18, attribution: '&copy; OpenStreetMap contributors',
-  }).addTo(map)
+  addConfiguredBasemap(map)
   reservoirLayer = L.geoJSON(collection as GeoJsonObject, {
     style: (feature) => reservoirStyle(feature as ReservoirFeature),
     onEachFeature: (rawFeature, layer) => {
@@ -188,7 +262,12 @@ async function loadApplication() {
 }
 
 onMounted(loadApplication)
-onBeforeUnmount(() => map?.remove())
+onBeforeUnmount(() => {
+  map?.remove()
+  map = null
+  activeBaseLayers = []
+  fallbackBoundaryLayer = null
+})
 </script>
 
 <template>
@@ -225,6 +304,8 @@ onBeforeUnmount(() => map?.remove())
       <section class="map-panel">
         <div ref="mapElement" class="map"></div>
         <div v-if="selected" class="map-selection"><LocateFixed :size="15" /><strong>{{ selected.properties.name_cn }}</strong><span>{{ selected.properties.lon.toFixed(4) }}, {{ selected.properties.lat.toFixed(4) }}</span></div>
+        <div v-if="basemapStatus === 'osm'" class="map-basemap-status fallback">天地图暂不可用，已切换备用底图</div>
+        <div v-else-if="basemapStatus === 'unavailable'" class="map-basemap-status unavailable">在线底图不可用，当前显示本地边界</div>
         <div class="map-legend"><span><i></i>省控水库边界</span><span><i class="selected"></i>当前水库</span></div>
       </section>
 
