@@ -85,7 +85,7 @@ pnpm build
 
 - `/`：地图、天气、过境与联合推荐页面。
 - `/api/health`：应返回 `status: ok`。
-- `/api/weather?lat=36.0736&lon=114.1324`：应返回 16 天和 384 小时天气。
+- `/api/weather?latitude=36.0736&longitude=114.1324`：应返回 16 天和 384 小时天气。
 
 Cloudflare 的 Git 集成会在每次 `main` 分支更新后自动重新部署。GitHub Actions 每日提交新轨道 JSON 后，网站也会自动发布最新数据。
 
