@@ -26,6 +26,7 @@ const searchQuery = ref('')
 const selectedSatellite = ref('全部卫星')
 const listOpenOnMobile = ref(false)
 const weatherStrip = ref<HTMLDivElement | null>(null)
+const satelliteFilterStrip = ref<HTMLDivElement | null>(null)
 const maxCloud = ref(30)
 const maxRain = ref(25)
 const maxWind = ref(5)
@@ -89,6 +90,20 @@ function formatTimestamp(value?: string | null) {
 
 function scrollWeather(direction: number) {
   weatherStrip.value?.scrollBy({ left: direction * 360, behavior: 'smooth' })
+}
+
+function scrollSatelliteFilters(direction: number) {
+  satelliteFilterStrip.value?.scrollBy({ left: direction * 240, behavior: 'smooth' })
+}
+
+function scrollFiltersWithWheel(event: WheelEvent) {
+  const strip = satelliteFilterStrip.value
+  if (!strip || Math.abs(event.deltaY) <= Math.abs(event.deltaX)) return
+  const atStart = strip.scrollLeft <= 0
+  const atEnd = strip.scrollLeft + strip.clientWidth >= strip.scrollWidth - 1
+  if ((event.deltaY < 0 && atStart) || (event.deltaY > 0 && atEnd)) return
+  event.preventDefault()
+  strip.scrollBy({ left: event.deltaY, behavior: 'auto' })
 }
 
 function reservoirStyle(feature?: ReservoirFeature) {
@@ -241,7 +256,7 @@ onBeforeUnmount(() => map?.remove())
         </section>
 
         <section class="panel-section weather-section">
-          <div class="section-heading"><div><p class="eyebrow">OPEN-METEO · 16 DAYS</p><h3>逐日天气预报</h3></div><div class="scroll-buttons"><button @click="scrollWeather(-1)"><ChevronLeft :size="16" /></button><button @click="scrollWeather(1)"><ChevronRight :size="16" /></button></div></div>
+          <div class="section-heading"><div><p class="eyebrow">OPEN-METEO · 16 DAYS</p><h3>逐日天气预报</h3></div><div class="scroll-buttons"><button aria-label="向左查看天气" @click="scrollWeather(-1)"><ChevronLeft :size="16" /></button><button aria-label="向右查看天气" @click="scrollWeather(1)"><ChevronRight :size="16" /></button></div></div>
           <div v-if="weather" ref="weatherStrip" class="weather-strip">
             <article v-for="day in weather.days" :key="day.date" class="weather-card">
               <span>{{ formatDate(day.date) }}</span><b>{{ weatherSymbol(day.weatherCode) }}</b><strong>{{ Math.round(day.temperatureMax) }}°</strong><small>{{ Math.round(day.temperatureMin) }}° · {{ weatherLabel(day.weatherCode) }}</small><em><CloudRain :size="12" />{{ day.precipitationProbability }}%</em><em><Wind :size="12" />{{ day.windSpeed.toFixed(1) }}m/s</em>
@@ -251,8 +266,8 @@ onBeforeUnmount(() => map?.remove())
         </section>
 
         <section class="panel-section windows-section">
-          <div class="section-heading"><div><p class="eyebrow">WEATHER × ORBIT</p><h3>全部联合判断</h3></div><span>{{ selectedPasses.length }}个窗口</span></div>
-          <div class="satellite-filters">
+          <div class="section-heading"><div><p class="eyebrow">WEATHER × ORBIT</p><h3>全部联合判断</h3></div><div class="section-heading-actions"><span>{{ selectedPasses.length }}个窗口</span><div class="scroll-buttons"><button aria-label="向左查看卫星" @click="scrollSatelliteFilters(-1)"><ChevronLeft :size="16" /></button><button aria-label="向右查看卫星" @click="scrollSatelliteFilters(1)"><ChevronRight :size="16" /></button></div></div></div>
+          <div ref="satelliteFilterStrip" class="satellite-filters" @wheel="scrollFiltersWithWheel">
             <button v-for="name in satelliteOptions" :key="name" :class="{ active: selectedSatellite === name }" @click="selectedSatellite = name">{{ name }}</button>
           </div>
           <div class="window-list">
