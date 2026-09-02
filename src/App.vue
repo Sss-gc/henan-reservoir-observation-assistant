@@ -281,7 +281,7 @@ onBeforeUnmount(() => {
       <div class="brand-lockup">
         <button class="mobile-menu" aria-label="打开水库列表" @click="listOpenOnMobile = true"><Menu :size="20" /></button>
         <div class="brand-mark"><FlaskConical :size="23" /></div>
-        <div><p class="eyebrow">HENAN RESERVOIR FIELD LAB</p><h1>水库实验观测助手</h1></div>
+        <div><p class="eyebrow">HENAN RESERVOIR FIELD LAB</p><h1>星地同步实验助手</h1></div>
       </div>
       <div class="topbar-status">
         <span><CloudSun :size="14" />未来16天天气</span>
