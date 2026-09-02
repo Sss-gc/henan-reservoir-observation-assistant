@@ -274,7 +274,7 @@ async function loadApplication() {
   loadError.value = ''
   try {
     const [reservoirResponse, orbitResponse] = await Promise.all([
-      fetch('/data/reservoirs.geojson'), fetch('/data/orbit-passes.json'),
+      fetch('/data/reservoirs.geojson?v=20260902-hanjiang-full'), fetch('/data/orbit-passes.json'),
     ])
     if (!reservoirResponse.ok || !orbitResponse.ok) throw new Error('静态观测数据加载失败')
     const collection = await reservoirResponse.json() as ReservoirCollection
