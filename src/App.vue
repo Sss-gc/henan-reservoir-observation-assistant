@@ -4,7 +4,7 @@ import * as L from 'leaflet'
 import type { GeoJsonObject } from 'geojson'
 import {
   CalendarCheck, ChevronLeft, ChevronRight, CircleAlert, CloudRain, CloudSun,
-  DatabaseZap, FlaskConical, LocateFixed, MapPinned, Menu, RefreshCw, Search,
+  DatabaseZap, FileDown, FlaskConical, LocateFixed, MapPinned, Menu, RefreshCw, Search,
   Satellite, SlidersHorizontal, Wind, X,
 } from 'lucide-vue-next'
 import type {
@@ -31,6 +31,8 @@ const satelliteFilterStrip = ref<HTMLDivElement | null>(null)
 const maxCloud = ref(30)
 const maxRain = ref(25)
 const maxWind = ref(5)
+const documentDownloading = ref(false)
+const documentError = ref('')
 let weatherRequest = 0
 let map: L.Map | null = null
 let reservoirLayer: L.GeoJSON | null = null
@@ -113,6 +115,28 @@ function scrollFiltersWithWheel(event: WheelEvent) {
   if ((event.deltaY < 0 && atStart) || (event.deltaY > 0 && atEnd)) return
   event.preventDefault()
   strip.scrollBy({ left: event.deltaY, behavior: 'auto' })
+}
+
+async function downloadPlanDocument() {
+  if (!selected.value || documentDownloading.value) return
+  documentDownloading.value = true
+  documentError.value = ''
+  try {
+    const { downloadObservationPlan } = await import('./services/document')
+    await downloadObservationPlan({
+      reservoir: selected.value.properties,
+      recommendations: recommendations.value,
+      bestRecommendations: bestRecommendations.value,
+      thresholds: { maxCloud: maxCloud.value, maxRainProbability: maxRain.value, maxWind: maxWind.value },
+      satelliteFilter: selectedSatellite.value,
+      orbitPayload: orbitPayload.value,
+      weather: weather.value,
+    })
+  } catch (error) {
+    documentError.value = error instanceof Error ? error.message : '文档生成失败，请稍后重试'
+  } finally {
+    documentDownloading.value = false
+  }
 }
 
 function reservoirStyle(feature?: ReservoirFeature) {
@@ -324,7 +348,8 @@ onBeforeUnmount(() => {
         <section class="notice"><CircleAlert :size="16" /><p>窗口表示轨道和幅宽可完整覆盖水库，不代表卫星运营方已确认成像。耀光按太阳—平静水面—卫星镜面反射几何估算，中高风险窗口已从“推荐”中排除；风浪与实际姿态仍会改变结果，出发前请再次核验。</p></section>
 
         <section class="panel-section recommendation-section">
-          <div class="section-heading"><div><p class="eyebrow">BEST WINDOWS</p><h3>推荐实验日期</h3></div><span>{{ bestRecommendations.length }}个推荐</span></div>
+          <div class="section-heading"><div><p class="eyebrow">BEST WINDOWS</p><h3>推荐实验日期</h3></div><div class="recommendation-actions"><span>{{ bestRecommendations.length }}个推荐</span><button class="document-download" :disabled="documentDownloading" @click="downloadPlanDocument"><RefreshCw v-if="documentDownloading" class="spin" :size="14" /><FileDown v-else :size="14" />{{ documentDownloading ? '正在生成' : '下载实验计划' }}</button></div></div>
+          <p v-if="documentError" class="document-error"><CircleAlert :size="14" />{{ documentError }}</p>
           <div class="thresholds">
             <SlidersHorizontal :size="15" /><label>云量≤<input v-model.number="maxCloud" type="number" min="0" max="100" />%</label><label>降水≤<input v-model.number="maxRain" type="number" min="0" max="100" />%</label><label>风速≤<input v-model.number="maxWind" type="number" min="1" max="20" />m/s</label><span class="glint-rule">自动避开中高耀光</span>
           </div>
