@@ -125,6 +125,27 @@ function recommendationWeather(item: ExperimentRecommendation) {
   return `云量 ${Math.round(item.weatherHour.cloudCover)}%\n降水 ${Math.round(item.weatherHour.precipitationProbability)}%\n风速 ${item.weatherHour.windSpeed.toFixed(1)} m/s`
 }
 
+const SATELLITE_FAMILY_ORDER = ['Sentinel', 'HJ', 'Landsat', 'GF'] as const
+type SatelliteFamily = typeof SATELLITE_FAMILY_ORDER[number]
+
+function satelliteFamily(satellite: string): SatelliteFamily {
+  if (satellite.startsWith('Sentinel')) return 'Sentinel'
+  if (satellite.startsWith('HJ')) return 'HJ'
+  if (satellite.startsWith('Landsat')) return 'Landsat'
+  return 'GF'
+}
+
+export function sortRecommendationsBySatelliteFamily(items: ExperimentRecommendation[]) {
+  return [...items].sort((a, b) => {
+    const familyDifference = SATELLITE_FAMILY_ORDER.indexOf(satelliteFamily(a.satellitePass.satellite))
+      - SATELLITE_FAMILY_ORDER.indexOf(satelliteFamily(b.satellitePass.satellite))
+    if (familyDifference) return familyDifference
+    return a.satellitePass.satellite.localeCompare(b.satellitePass.satellite, 'zh-CN', { numeric: true })
+      || a.satellitePass.date.localeCompare(b.satellitePass.date)
+      || a.satellitePass.time.localeCompare(b.satellitePass.time)
+  })
+}
+
 function createSummaryTable(data: ObservationPlanDocumentData) {
   const p = data.reservoir
   const widths = [1900, 2780, 1900, 2780]
@@ -173,17 +194,38 @@ function createAllWindowsTable(items: ExperimentRecommendation[]) {
     children: ['日期时间', '卫星 / 传感器', '过境天气', '耀光风险', '评分', '判断']
       .map((value, index) => cell(value, widths[index], { header: true, align: AlignmentType.CENTER })),
   })
-  const body = items.map((item) => new TableRow({
-    cantSplit: true,
-    children: [
-      cell(`${item.satellitePass.date}\n${item.satellitePass.time}`, widths[0], { align: AlignmentType.CENTER }),
-      cell(`${item.satellitePass.satellite}\n${item.satellitePass.sensor}`, widths[1]),
-      cell(recommendationWeather(item), widths[2]),
-      cell(`${glintLabel(item.satellitePass.glint_risk)}\n${item.satellitePass.glint_angle_deg.toFixed(1)}°`, widths[3], { align: AlignmentType.CENTER }),
-      cell(item.score === null ? '—' : String(item.score), widths[4], { align: AlignmentType.CENTER, bold: true, color: levelColor(item.level) }),
-      cell(item.level, widths[5], { align: AlignmentType.CENTER, bold: true, color: levelColor(item.level) }),
-    ],
-  }))
+  const familyLabels: Record<SatelliteFamily, string> = {
+    Sentinel: 'Sentinel 系列', HJ: 'HJ 系列', Landsat: 'Landsat 系列', GF: 'GF / Gaofen 系列',
+  }
+  const body: TableRow[] = []
+  let currentFamily: SatelliteFamily | null = null
+  for (const item of sortRecommendationsBySatelliteFamily(items)) {
+    const family = satelliteFamily(item.satellitePass.satellite)
+    if (family !== currentFamily) {
+      currentFamily = family
+      body.push(new TableRow({
+        cantSplit: true,
+        children: [new TableCell({
+          columnSpan: widths.length,
+          width: { size: PAGE_WIDTH_DXA, type: WidthType.DXA },
+          margins: { top: 100, bottom: 100, left: 140, right: 140 },
+          shading: { type: ShadingType.CLEAR, fill: COLORS.softFill, color: 'auto' },
+          children: [paragraph(familyLabels[family], { bold: true, color: COLORS.blue, size: 18 })],
+        })],
+      }))
+    }
+    body.push(new TableRow({
+      cantSplit: true,
+      children: [
+        cell(`${item.satellitePass.date}\n${item.satellitePass.time}`, widths[0], { align: AlignmentType.CENTER }),
+        cell(`${item.satellitePass.satellite}\n${item.satellitePass.sensor}`, widths[1]),
+        cell(recommendationWeather(item), widths[2]),
+        cell(`${glintLabel(item.satellitePass.glint_risk)}\n${item.satellitePass.glint_angle_deg.toFixed(1)}°`, widths[3], { align: AlignmentType.CENTER }),
+        cell(item.score === null ? '—' : String(item.score), widths[4], { align: AlignmentType.CENTER, bold: true, color: levelColor(item.level) }),
+        cell(item.level, widths[5], { align: AlignmentType.CENTER, bold: true, color: levelColor(item.level) }),
+      ],
+    }))
+  }
   return table([header, ...body], widths)
 }
 
@@ -218,7 +260,7 @@ export function createObservationPlanDocument(data: ObservationPlanDocumentData)
     ...bestSection,
     paragraph(`本次共纳入 ${data.recommendations.length} 个完整覆盖窗口，其中推荐 ${data.recommendations.filter((item) => item.level === '推荐').length} 个、备选 ${data.recommendations.filter((item) => item.level === '备选').length} 个、待预报 ${data.recommendations.filter((item) => item.level === '待预报').length} 个。`, { color: COLORS.muted, size: 18 }),
     new Paragraph({ text: '三、全部联合判断', heading: HeadingLevel.HEADING_1 }),
-    ...(ranked.length ? [createAllWindowsTable(ranked)] : [paragraph('当前水库和卫星筛选下没有完整覆盖窗口。', { color: COLORS.muted })]),
+    ...(ranked.length ? [createAllWindowsTable(data.recommendations)] : [paragraph('当前水库和卫星筛选下没有完整覆盖窗口。', { color: COLORS.muted })]),
     new Paragraph({ text: '四、数据来源与使用说明', heading: HeadingLevel.HEADING_1 }),
     paragraph(`轨道数据：CelesTrak OMM / SGP4；静态数据生成时间 ${sourceTimestamp(data.orbitPayload?.generated_at)}；轨道历元 ${sourceTimestamp(data.orbitPayload?.element_epoch_latest)}。`),
     paragraph(`天气数据：${data.weather?.source ?? '天气尚未获取'}；天气更新时间 ${sourceTimestamp(data.weather?.fetchedAt)}。逐小时天气按过境时刻附近的预报匹配。`),

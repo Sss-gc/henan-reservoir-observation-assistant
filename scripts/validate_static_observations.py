@@ -14,6 +14,19 @@ def main() -> None:
     features = reservoirs.get("features", [])
     assert len(features) == 25, "reservoirs.geojson必须包含25座水库"
     reservoir_ids = {item["properties"]["id"] for item in features}
+    danjiang = next(item for item in features if item["properties"]["id"] == "HN_RSV_024")
+    assert danjiang["geometry"]["type"] == "MultiPolygon"
+    assert len(danjiang["geometry"]["coordinates"]) >= 3, "丹江口水库必须包含主库区和汉江补充区域"
+    assert danjiang["properties"]["area_km2"] > 810
+    assert "汉江.shp" in danjiang["properties"]["data_source"]
+    assert danjiang["properties"]["geometry_status"] == "verified-valid-supplemented"
+    danjiang_min_lat = min(
+        coordinate[1]
+        for polygon in danjiang["geometry"]["coordinates"]
+        for ring in polygon
+        for coordinate in ring
+    )
+    assert danjiang_min_lat < 32.39, "丹江口水库南侧汉江区域未纳入静态边界"
     items = passes.get("items", [])
     assert items, "orbit-passes.json不能为空"
     assert passes["is_imaging_confirmed"] is False

@@ -22,6 +22,7 @@ SOURCE_ROOT = Path(
 RESERVOIR_SHP = SOURCE_ROOT / "河南省25个省控水库" / "25个省控水库.shp"
 CITY_SHP = SOURCE_ROOT / "中国审图号：GS（2024）0650号" / "河南省各地市.shp"
 PROVINCE_SHP = SOURCE_ROOT / "2024河流湖泊" / "河南省水域线" / "河南省界.shp"
+DANJIANG_HANJIANG_SHP = SOURCE_ROOT / "2024河流湖泊" / "丹江口水库" / "汉江.shp"
 OUTPUT_DIR = PROJECT_ROOT / "public" / "data"
 VALIDATION_DIR = PROJECT_ROOT / "data" / "source_validation"
 GEOD = Geod(ellps="WGS84")
@@ -130,7 +131,11 @@ def load_online_validation():
 
 
 def main():
-    missing = [str(path) for path in (RESERVOIR_SHP, CITY_SHP, PROVINCE_SHP) if not path.exists()]
+    missing = [
+        str(path)
+        for path in (RESERVOIR_SHP, CITY_SHP, PROVINCE_SHP, DANJIANG_HANJIANG_SHP)
+        if not path.exists()
+    ]
     if missing:
         raise FileNotFoundError("Missing GIS inputs:\n" + "\n".join(missing))
 
@@ -156,11 +161,19 @@ def main():
         for props, geom in province_inputs
     ]
 
+    hanjiang_geometry = unary_union([geom for _, geom in read_features(DANJIANG_HANJIANG_SHP)])
+    if hanjiang_geometry.is_empty:
+        raise RuntimeError(f"Supplemental Hanjiang geometry is empty: {DANJIANG_HANJIANG_SHP}")
+
     reservoir_features = []
     quality_notes = []
     for index, (props, geom) in enumerate(read_features(RESERVOIR_SHP), start=1):
         original_name = (props.get("name") or "").strip()
         name = original_name or "彰武水库"
+        supplemental_source = None
+        if name == "丹江口水库":
+            geom = polygonal_only(make_valid(unary_union([geom, hanjiang_geometry])))
+            supplemental_source = "2024河流湖泊/丹江口水库/汉江.shp"
         point = geom.representative_point()
         area_m2, _ = GEOD.geometry_area_perimeter(geom)
         reservoir_code = f"HN_RSV_{index:03d}"
@@ -197,8 +210,11 @@ def main():
                     "center_method": "polygon_representative_point",
                     "osm_id": osm_id,
                     "feature_class": props.get("fclass", ""),
-                    "data_source": "河南省25个省控水库/25个省控水库.shp",
-                    "geometry_status": "verified-valid" if geom.is_valid else "repaired",
+                    "data_source": "河南省25个省控水库/25个省控水库.shp"
+                    + (f" + {supplemental_source}" if supplemental_source else ""),
+                    "geometry_status": "verified-valid-supplemented" if supplemental_source else (
+                        "verified-valid" if geom.is_valid else "repaired"
+                    ),
                     "online_name": online.get("namedetails", {}).get("name", "") if online else "",
                     "online_display_name": online.get("display_name", "") if online else "",
                     "online_center_offset_m": round(online_distance_m, 1) if online_distance_m is not None else None,
@@ -216,6 +232,16 @@ def main():
                     "note": "主图层名称为空；依据同目录、同 osm_id 和相同几何的“彰武水库.shp”补为彰武水库。",
                 }
             )
+        if supplemental_source:
+            quality_notes.append(
+                {
+                    "code": reservoir_code,
+                    "field": "geometry",
+                    "status": "supplemented-from-local-source",
+                    "note": "丹江口水库边界已合并汉江.shp中的2个WGS84河道水面多边形。",
+                    "source": str(DANJIANG_HANJIANG_SHP),
+                }
+            )
 
     report = {
         "reservoir_count": len(reservoir_features),
@@ -223,6 +249,7 @@ def main():
         "source": str(RESERVOIR_SHP),
         "city_boundary_source": str(CITY_SHP),
         "province_boundary_source": str(PROVINCE_SHP),
+        "danjiang_hanjiang_source": str(DANJIANG_HANJIANG_SHP),
         "review_number": "GS（2024）0650号（行政区边界来源目录标识）",
         "online_validation": {
             "matched_osm_records": sum(

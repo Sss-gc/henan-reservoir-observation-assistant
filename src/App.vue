@@ -4,7 +4,7 @@ import * as L from 'leaflet'
 import type { GeoJsonObject } from 'geojson'
 import {
   CalendarCheck, ChevronLeft, ChevronRight, CircleAlert, CloudRain, CloudSun,
-  DatabaseZap, FileDown, FlaskConical, LocateFixed, MapPinned, Menu, RefreshCw, Search,
+  DatabaseZap, FileDown, LocateFixed, MapPinned, Menu, RefreshCw, Search,
   Satellite, SlidersHorizontal, Wind, X,
 } from 'lucide-vue-next'
 import type {
@@ -304,7 +304,7 @@ onBeforeUnmount(() => {
     <header class="topbar">
       <div class="brand-lockup">
         <button class="mobile-menu" aria-label="打开水库列表" @click="listOpenOnMobile = true"><Menu :size="20" /></button>
-        <div class="brand-mark"><FlaskConical :size="23" /></div>
+        <div class="brand-mark"><Satellite :size="23" /></div>
         <div><p class="eyebrow">HENAN RESERVOIR FIELD LAB</p><h1>星地同步实验助手</h1></div>
       </div>
       <div class="topbar-status">

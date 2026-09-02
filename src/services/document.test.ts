@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { ExperimentRecommendation } from '../types'
-import { createObservationPlanBlob, observationPlanFileName } from './document'
+import { createObservationPlanBlob, observationPlanFileName, sortRecommendationsBySatelliteFamily } from './document'
 
 const recommendation: ExperimentRecommendation = {
   satellitePass: {
@@ -25,6 +25,19 @@ const recommendation: ExperimentRecommendation = {
   reasons: ['过境云量12%', '降水概率5%', '风速2.4m/s', '耀光极低风险 45.3°'],
 }
 
+const withSatellite = (satellite: string, date: string): ExperimentRecommendation => ({
+  ...recommendation,
+  satellitePass: { ...recommendation.satellitePass, id: `${satellite}-${date}`, satellite, date },
+})
+
+const mixedSatelliteRecommendations = [
+  withSatellite('Gaofen-1', '2026-09-04'),
+  withSatellite('Landsat 9', '2026-09-03'),
+  withSatellite('HJ-2B', '2026-09-02'),
+  withSatellite('Sentinel-2C', '2026-09-05'),
+  withSatellite('Sentinel-2A', '2026-09-06'),
+]
+
 describe('observation plan document', () => {
   it('creates a valid docx package in the browser-compatible Blob format', async () => {
     const blob = await createObservationPlanBlob({
@@ -32,7 +45,7 @@ describe('observation plan document', () => {
         id: 'sample', code: 'HNSK-001', name_cn: '示例水库', city: '郑州市', lon: 113.65, lat: 34.76,
         area_km2: 12.34, osm_id: '', feature_class: 'reservoir', data_source: 'test', geometry_status: 'verified',
       },
-      recommendations: [recommendation],
+      recommendations: mixedSatelliteRecommendations,
       bestRecommendations: [recommendation],
       thresholds: { maxCloud: 30, maxRainProbability: 25, maxWind: 5 },
       satelliteFilter: '全部卫星',
@@ -56,5 +69,11 @@ describe('observation plan document', () => {
   it('sanitizes file names and uses the Beijing calendar date', () => {
     expect(observationPlanFileName('白沙/水库:*?', new Date('2026-09-01T16:30:00Z')))
       .toBe('白沙_水库_遥感观测实验计划_20260902.docx')
+  })
+
+  it('groups joint judgments as Sentinel, HJ, Landsat, then GF', () => {
+    const sorted = sortRecommendationsBySatelliteFamily(mixedSatelliteRecommendations)
+    expect(sorted.map((item) => item.satellitePass.satellite))
+      .toEqual(['Sentinel-2A', 'Sentinel-2C', 'HJ-2B', 'Landsat 9', 'Gaofen-1'])
   })
 })
