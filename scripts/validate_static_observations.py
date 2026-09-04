@@ -33,6 +33,9 @@ def main() -> None:
     assert passes["schema_version"] == "static-observation-v2"
     assert passes["reservoirs_with_passes"] == len({item["reservoir_id"] for item in items})
     for item in items:
+        if item['satellite'].startswith('HJ'):
+            assert item['satellite'] == 'HJ-2B', 'HJ仅保留HJ-2B'
+            assert item['sensor'] == 'CCD1–CCD4 (16 m，四相机拼接)', 'HJ-2B必须使用CCD系列'
         assert item["reservoir_id"] in reservoir_ids
         assert item["coverage"] >= 99.9
         assert item["is_imaging_confirmed"] is False
