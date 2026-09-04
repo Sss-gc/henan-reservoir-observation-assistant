@@ -12,3 +12,4 @@ backend/data/
 .env
 .env.local
 *.docx
+!src/assets/observation-plan-template.docx

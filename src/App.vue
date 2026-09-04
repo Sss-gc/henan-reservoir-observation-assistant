@@ -11,6 +11,7 @@ import type {
   OrbitPassPayload, ReservoirCollection, ReservoirFeature, WeatherResult,
 } from './types'
 import { fetchWeather, weatherLabel, weatherSymbol } from './services/weather'
+import { isSupportedObservationPass, normalizeObservationPass } from './services/satellite'
 import { buildExperimentRecommendation } from './services/recommendation'
 
 const mapElement = ref<HTMLDivElement | null>(null)
@@ -279,6 +280,7 @@ async function loadApplication() {
     if (!reservoirResponse.ok || !orbitResponse.ok) throw new Error('静态观测数据加载失败')
     const collection = await reservoirResponse.json() as ReservoirCollection
     orbitPayload.value = await orbitResponse.json() as OrbitPassPayload
+    orbitPayload.value.items = orbitPayload.value.items.map(normalizeObservationPass).filter(isSupportedObservationPass)
     reservoirs.value = collection.features
     loading.value = false
     await nextTick()

@@ -34,7 +34,7 @@ SATELLITE_CATALOG = [
     },
     {
         "id": "hj-2b", "name": "HJ-2B", "norad_cat_id": 46479,
-        "intl_designator": "2020-067B", "sensor": "16m WVC-2 (4-camera composite)", "swath_km": 800.0,
+        "intl_designator": "2020-067B", "sensor": "CCD1–CCD4 (16 m，四相机拼接)", "swath_km": 800.0,
         "prediction_enabled": True, "catalog_status": "orbit-trackable-wide-view",
     },
     {
@@ -47,7 +47,7 @@ SATELLITE_CATALOG = [
 
 DOMESTIC_MISSION_METADATA = {
     "hj-2b": {
-        "prediction_mode": "16m WVC-2 four-camera composite",
+        "prediction_mode": "16m CCD1-CCD4 four-camera composite",
         "resolution_m": 16.0,
         "swath_basis": "official measured swath >800km; 800km used conservatively",
         "documentation_url": "https://www.cnsa.gov.cn/n6758823/n6758838/c6810270/content.html",
