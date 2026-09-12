@@ -86,7 +86,7 @@ pnpm build
 | Node.js | `22` |
 | Production variable | `VITE_TIANDITU_KEY`（天地图浏览器端 key） |
 
-天气和轨道计算无需额外密钥；生产页面需配置绑定站点域名的天地图浏览器端 key。部署后检查：
+天气和轨道计算无需额外密钥；生产页面需配置绑定站点域名的天地图浏览器端 key。地图仅调用天地图矢量与中文注记瓦片，不再加载 OpenStreetMap 备用底图。部署后检查：
 
 - `/`：地图、天气、过境与联合推荐页面。
 - `/api/health`：应返回 `status: ok`。
