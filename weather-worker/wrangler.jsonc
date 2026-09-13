@@ -1,0 +1,16 @@
+{
+  "$schema": "../node_modules/wrangler/config-schema.json",
+  "name": "henan-reservoir-weather-refresh",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-09-13",
+  "workers_dev": false,
+  "triggers": {
+    "crons": ["0 1 * * *"]
+  },
+  "kv_namespaces": [
+    { "binding": "WEATHER_KV" }
+  ],
+  "observability": {
+    "enabled": true
+  }
+}

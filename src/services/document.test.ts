@@ -17,16 +17,11 @@ const recommendation: ExperimentRecommendation = {
     is_imaging_confirmed: false,
   },
   weatherDay: {
-    date: '2026-09-05', weatherCode: 1, temperatureMax: 30, temperatureMin: 20,
-    cloudCover: 12, precipitationProbability: 5, precipitation: 0, windSpeed: 2.4, radiation: 18,
-  },
-  weatherHour: {
-    time: '2026-09-05T10:00', temperature: 27, cloudCover: 12,
-    precipitationProbability: 5, precipitation: 0, windSpeed: 2.4,
+    date: '2026-09-05', dayCondition: '晴', nightCondition: '多云',
   },
   score: 93,
   level: '推荐',
-  reasons: ['过境云量12%', '降水概率5%', '风速2.4m/s', '耀光极低风险 45.3°'],
+  reasons: ['白天晴（夜间多云）', '耀光极低风险 45.3°'],
 }
 
 const withSatellite = (satellite: string, date: string): ExperimentRecommendation => ({
@@ -58,7 +53,6 @@ describe('observation plan document', () => {
         ? Array.from({ length: 30 }, (_, index) => mixedSatelliteRecommendations[index % mixedSatelliteRecommendations.length])
         : mixedSatelliteRecommendations,
       bestRecommendations: [recommendation],
-      thresholds: { maxCloud: 30, maxRainProbability: 25, maxWind: 5 },
       satelliteFilter: '全部卫星',
       orbitPayload: null,
       weather: null,
@@ -135,12 +129,12 @@ describe('observation plan document', () => {
   it('exports explicit empty states without stale template records', async () => {
     const blob = await createObservationPlanBlob({
       reservoir: { id: 'x', code: 'x', name_cn: '测试水库', city: '测试城市', lon: 113, lat: 34, area_km2: 1, osm_id: '', feature_class: 'reservoir', data_source: 'test', geometry_status: 'verified' },
-      recommendations: [], bestRecommendations: [recommendation], thresholds: { maxCloud: 30, maxRainProbability: 25, maxWind: 5 },
+      recommendations: [], bestRecommendations: [recommendation],
       satelliteFilter: '全部卫星', orbitPayload: null, weather: null,
     })
     const zip = await JSZip.loadAsync(await blob.arrayBuffer())
     const xml = await zip.file('word/document.xml')!.async('string')
-    expect(xml).toContain('暂无“推荐”窗口')
+    expect(xml).toContain('暂无同时满足天气和耀光条件的“推荐”窗口')
     expect(xml).toContain('没有完整覆盖窗口')
     expect(xml).not.toContain('{{')
     expect(xml).not.toContain('Sentinel-2C')

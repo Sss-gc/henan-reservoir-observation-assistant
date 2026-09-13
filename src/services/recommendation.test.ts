@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { SatellitePass, WeatherResult } from '../types'
-import { buildExperimentRecommendation, nearestWeatherHour } from './recommendation'
+import { buildExperimentRecommendation } from './recommendation'
 
 const satellitePass: SatellitePass = {
   id: 'pass-1', reservoir_id: 'HN_RSV_001', date: '2026-09-01', time: '10:25',
@@ -12,45 +12,33 @@ const satellitePass: SatellitePass = {
   is_imaging_confirmed: false,
 }
 
-function weather(cloud: number, rain: number, wind: number): WeatherResult {
+function weather(condition: string): WeatherResult {
   return {
-    source: 'test', fetchedAt: '2026-08-28T00:00:00Z', cacheStatus: 'test',
-    days: [{ date: '2026-09-01', weatherCode: 1, temperatureMax: 30, temperatureMin: 20, cloudCover: cloud, precipitationProbability: rain, precipitation: 0, windSpeed: wind, radiation: 20 }],
-    hours: [
-      { time: '2026-09-01T09:00', temperature: 25, cloudCover: 80, precipitationProbability: 60, precipitation: 1, windSpeed: 8 },
-      { time: '2026-09-01T10:00', temperature: 26, cloudCover: cloud, precipitationProbability: rain, precipitation: 0, windSpeed: wind },
-      { time: '2026-09-01T11:00', temperature: 27, cloudCover: 70, precipitationProbability: 50, precipitation: 0.5, windSpeed: 7 },
-    ],
+    source: '中央气象台', sourceUrl: 'https://www.nmc.cn/example', stationName: '安阳',
+    publishedAt: '2026-09-01T08:00:00+08:00', fetchedAt: '2026-09-01T01:00:00Z', cacheStatus: 'test',
+    days: [{ date: '2026-09-01', dayCondition: condition, nightCondition: '多云' }],
   }
 }
 
-const thresholds = { maxCloud: 30, maxRainProbability: 25, maxWind: 5 }
-
 describe('experiment recommendation', () => {
-  it('matches the nearest forecast hour to the pass time', () => {
-    expect(nearestWeatherHour(satellitePass, weather(10, 5, 2))?.time).toBe('2026-09-01T10:00')
-  })
-
-  it('recommends a clear, dry and calm full-coverage window', () => {
-    const result = buildExperimentRecommendation(satellitePass, weather(10, 5, 2), thresholds)
+  it('recommends a clear day with low sunglint risk', () => {
+    const result = buildExperimentRecommendation(satellitePass, weather('晴'))
     expect(result.level).toBe('推荐')
     expect(result.score).toBeGreaterThanOrEqual(75)
   })
 
-  it('does not recommend a window beyond the weather horizon', () => {
-    const result = buildExperimentRecommendation({ ...satellitePass, date: '2026-10-01' }, weather(10, 5, 2), thresholds)
+  it('marks windows beyond the seven-day forecast as pending', () => {
+    const result = buildExperimentRecommendation({ ...satellitePass, date: '2026-10-01' }, weather('晴'))
     expect(result.level).toBe('待预报')
     expect(result.score).toBeNull()
   })
 
-  it('rejects high-risk weather', () => {
-    const result = buildExperimentRecommendation(satellitePass, weather(95, 90, 12), thresholds)
-    expect(result.level).toBe('不推荐')
+  it('rejects rainy weather', () => {
+    expect(buildExperimentRecommendation(satellitePass, weather('中雨')).level).toBe('不推荐')
   })
 
-  it('downgrades a geometrically high-risk sunglint window', () => {
-    const glintPass = { ...satellitePass, glint_angle_deg: 6, glint_risk: 'high' as const }
-    const result = buildExperimentRecommendation(glintPass, weather(0, 0, 2), thresholds)
+  it('does not recommend a geometrically high-risk sunglint window', () => {
+    const result = buildExperimentRecommendation({ ...satellitePass, glint_angle_deg: 6, glint_risk: 'high' }, weather('晴'))
     expect(result.level).not.toBe('推荐')
     expect(result.reasons.at(-1)).toContain('耀光高风险')
   })

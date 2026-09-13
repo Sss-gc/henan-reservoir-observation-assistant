@@ -1,62 +1,42 @@
 import type { ExperimentRecommendation, SatellitePass, WeatherResult } from '../types'
 
-export interface ExperimentThresholds {
-  maxCloud: number
-  maxRainProbability: number
-  maxWind: number
-}
+const GLINT_LABEL = { high: '高', medium: '中', low: '低', minimal: '极低' }
+const GLINT_PENALTY = { high: 35, medium: 20, low: 5, minimal: 0 }
 
-export function nearestWeatherHour(pass: SatellitePass, weather: WeatherResult) {
-  const target = new Date(`${pass.date}T${pass.time}:00+08:00`).getTime()
-  return weather.hours
-    .filter((hour) => hour.time.startsWith(pass.date))
-    .map((hour) => ({ hour, distance: Math.abs(new Date(`${hour.time}:00+08:00`).getTime() - target) }))
-    .sort((a, b) => a.distance - b.distance)[0]?.hour ?? null
+function weatherBaseScore(condition: string) {
+  if (/雷|雨|雪|冰雹|雾|霾|沙尘|台风/.test(condition)) return 20
+  if (condition.includes('阴')) return 45
+  if (condition.includes('多云')) return 70
+  if (condition.includes('晴')) return 90
+  return 40
 }
 
 export function buildExperimentRecommendation(
   pass: SatellitePass,
   weather: WeatherResult | null,
-  thresholds: ExperimentThresholds,
 ): ExperimentRecommendation {
   const day = weather?.days.find((item) => item.date === pass.date) ?? null
-  const hour = weather ? nearestWeatherHour(pass, weather) : null
-  if (!day || !hour) {
+  const glintReason = `耀光${GLINT_LABEL[pass.glint_risk]}风险 ${pass.glint_angle_deg.toFixed(1)}°`
+  if (!day) {
     return {
       satellitePass: pass,
-      weatherDay: day,
-      weatherHour: hour,
+      weatherDay: null,
       score: null,
       level: '待预报',
-      reasons: [
-        '超出未来16天天气预报范围',
-        `耀光${{ high: '高', medium: '中', low: '低', minimal: '极低' }[pass.glint_risk]}风险 ${pass.glint_angle_deg.toFixed(1)}°`,
-      ],
+      reasons: ['超出中央气象台未来7天天气预报范围', glintReason],
     }
   }
-  const glintPenalty = { high: 35, medium: 20, low: 6, minimal: 0 }[pass.glint_risk]
-  const score = Math.max(0, Math.round(
-    100 - hour.cloudCover * 0.5 - hour.precipitationProbability * 0.25
-    - hour.precipitation * 10 - Math.max(0, hour.windSpeed - 2) * 8 - glintPenalty,
-  ))
-  const strict = hour.cloudCover <= thresholds.maxCloud
-    && hour.precipitationProbability <= thresholds.maxRainProbability
-    && hour.precipitation <= 0.2
-    && hour.windSpeed <= thresholds.maxWind
-    && pass.glint_risk !== 'high'
-    && pass.glint_risk !== 'medium'
-  const level = strict && score >= 75 ? '推荐' : score >= 55 ? '备选' : '不推荐'
+
+  const score = Math.max(0, weatherBaseScore(day.dayCondition) - GLINT_PENALTY[pass.glint_risk])
+  const hazardous = /雷|雨|雪|冰雹|雾|霾|沙尘|台风/.test(day.dayCondition)
+  const level = !hazardous && day.dayCondition.includes('晴') && ['low', 'minimal'].includes(pass.glint_risk) && score >= 75
+    ? '推荐'
+    : score >= 55 && pass.glint_risk !== 'high' ? '备选' : '不推荐'
   return {
     satellitePass: pass,
     weatherDay: day,
-    weatherHour: hour,
     score,
     level,
-    reasons: [
-      `过境云量${Math.round(hour.cloudCover)}%`,
-      `降水概率${Math.round(hour.precipitationProbability)}%`,
-      `风速${hour.windSpeed.toFixed(1)}m/s`,
-      `耀光${{ high: '高', medium: '中', low: '低', minimal: '极低' }[pass.glint_risk]}风险 ${pass.glint_angle_deg.toFixed(1)}°`,
-    ],
+    reasons: [`白天${day.dayCondition}（夜间${day.nightCondition}）`, glintReason],
   }
 }

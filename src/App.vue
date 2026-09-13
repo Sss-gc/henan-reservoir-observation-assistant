@@ -3,14 +3,14 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import * as L from 'leaflet'
 import type { GeoJsonObject } from 'geojson'
 import {
-  CalendarCheck, ChevronLeft, ChevronRight, CircleAlert, CloudRain, CloudSun,
+  CalendarCheck, ChevronLeft, ChevronRight, CircleAlert, CloudSun,
   DatabaseZap, FileDown, LocateFixed, MapPinned, Menu, RefreshCw, Search,
-  Satellite, SlidersHorizontal, Wind, X,
+  Satellite, X,
 } from 'lucide-vue-next'
 import type {
   OrbitPassPayload, ReservoirCollection, ReservoirFeature, WeatherResult,
 } from './types'
-import { fetchWeather, weatherLabel, weatherSymbol } from './services/weather'
+import { fetchWeather, weatherSymbol } from './services/weather'
 import { isSupportedObservationPass, normalizeObservationPass } from './services/satellite'
 import { buildExperimentRecommendation } from './services/recommendation'
 
@@ -29,9 +29,6 @@ const selectedSatellite = ref('全部卫星')
 const listOpenOnMobile = ref(false)
 const weatherStrip = ref<HTMLDivElement | null>(null)
 const satelliteFilterStrip = ref<HTMLDivElement | null>(null)
-const maxCloud = ref(30)
-const maxRain = ref(25)
-const maxWind = ref(5)
 const documentDownloading = ref(false)
 const documentError = ref('')
 let weatherRequest = 0
@@ -65,11 +62,7 @@ const satelliteOptions = computed(() => {
   return ['全部卫星', ...new Set(passes.map((item) => item.satellite))]
 })
 
-const recommendations = computed(() => selectedPasses.value.map((item) => buildExperimentRecommendation(
-  item,
-  weather.value,
-  { maxCloud: maxCloud.value, maxRainProbability: maxRain.value, maxWind: maxWind.value },
-)))
+const recommendations = computed(() => selectedPasses.value.map((item) => buildExperimentRecommendation(item, weather.value)))
 const rankedRecommendations = computed(() => [...recommendations.value].sort((a, b) => {
   if (a.score === null && b.score === null) return a.satellitePass.date.localeCompare(b.satellitePass.date)
   if (a.score === null) return 1
@@ -126,7 +119,6 @@ async function downloadPlanDocument() {
       reservoir: selected.value.properties,
       recommendations: recommendations.value,
       bestRecommendations: bestRecommendations.value,
-      thresholds: { maxCloud: maxCloud.value, maxRainProbability: maxRain.value, maxWind: maxWind.value },
       satelliteFilter: selectedSatellite.value,
       orbitPayload: orbitPayload.value,
       weather: weather.value,
@@ -184,7 +176,7 @@ async function loadSelectedWeather() {
   weatherError.value = ''
   weather.value = null
   try {
-    const result = await fetchWeather(feature.properties.lat, feature.properties.lon)
+    const result = await fetchWeather(feature.properties.id)
     if (requestId === weatherRequest) weather.value = result
   } catch (error) {
     if (requestId === weatherRequest) {
@@ -261,9 +253,9 @@ onBeforeUnmount(() => {
         <div><p class="eyebrow">HENAN RESERVOIR FIELD LAB</p><h1>星地同步实验助手</h1></div>
       </div>
       <div class="topbar-status">
-        <span><CloudSun :size="14" />未来16天天气</span>
+        <span><CloudSun :size="14" />未来7天天气</span>
         <span><Satellite :size="14" />未来30天轨道</span>
-        <span class="live-dot">公开访问版</span>
+        <span class="live-dot">私有访问版</span>
       </div>
     </header>
 
@@ -302,13 +294,10 @@ onBeforeUnmount(() => {
         <section class="panel-section recommendation-section">
           <div class="section-heading"><div><p class="eyebrow">BEST WINDOWS</p><h3>推荐实验日期</h3></div><div class="recommendation-actions"><span>{{ bestRecommendations.length }}个推荐</span><button class="document-download" :disabled="documentDownloading" @click="downloadPlanDocument"><RefreshCw v-if="documentDownloading" class="spin" :size="14" /><FileDown v-else :size="14" />{{ documentDownloading ? '正在生成' : '下载实验计划' }}</button></div></div>
           <p v-if="documentError" class="document-error"><CircleAlert :size="14" />{{ documentError }}</p>
-          <div class="thresholds">
-            <SlidersHorizontal :size="15" /><label>云量≤<input v-model.number="maxCloud" type="number" min="0" max="100" />%</label><label>降水≤<input v-model.number="maxRain" type="number" min="0" max="100" />%</label><label>风速≤<input v-model.number="maxWind" type="number" min="1" max="20" />m/s</label><span class="glint-rule">自动避开中高耀光</span>
-          </div>
           <div class="satellite-filters recommendation-satellite-filters" aria-label="筛选推荐卫星" @wheel="scrollFiltersWithWheel">
             <button v-for="name in satelliteOptions" :key="name" :class="{ active: selectedSatellite === name }" :aria-pressed="selectedSatellite === name" @click="selectedSatellite = name">{{ name }}</button>
           </div>
-          <div v-if="weatherLoading" class="inline-state"><RefreshCw class="spin" :size="17" />正在读取逐小时天气</div>
+          <div v-if="weatherLoading" class="inline-state"><RefreshCw class="spin" :size="17" />正在读取天气缓存</div>
           <div v-else-if="weatherError" class="inline-state error"><CircleAlert :size="17" />{{ weatherError }}<button @click="loadSelectedWeather">重试</button></div>
           <div v-else-if="bestRecommendations.length" class="recommendation-grid">
             <article v-for="item in bestRecommendations" :key="item.satellitePass.id" class="recommendation-card">
@@ -318,17 +307,17 @@ onBeforeUnmount(() => {
               <p>{{ item.reasons.join(' · ') }}</p>
             </article>
           </div>
-          <div v-else-if="weather" class="empty-recommendation">当前阈值下暂无“推荐”窗口，可查看下方备选窗口或适当调整阈值。</div>
+          <div v-else-if="weather" class="empty-recommendation">未来7天暂无同时满足晴天和低耀光条件的“推荐”窗口。</div>
         </section>
 
         <section class="panel-section weather-section">
-          <div class="section-heading"><div><p class="eyebrow">OPEN-METEO · 16 DAYS</p><h3>逐日天气预报</h3></div><div class="scroll-buttons"><button aria-label="向左查看天气" @click="scrollWeather(-1)"><ChevronLeft :size="16" /></button><button aria-label="向右查看天气" @click="scrollWeather(1)"><ChevronRight :size="16" /></button></div></div>
+          <div class="section-heading"><div><p class="eyebrow">NMC · 7 DAYS</p><h3>中央气象台逐日天气</h3></div><div class="scroll-buttons"><button aria-label="向左查看天气" @click="scrollWeather(-1)"><ChevronLeft :size="16" /></button><button aria-label="向右查看天气" @click="scrollWeather(1)"><ChevronRight :size="16" /></button></div></div>
           <div v-if="weather" ref="weatherStrip" class="weather-strip">
             <article v-for="day in weather.days" :key="day.date" class="weather-card">
-              <span>{{ formatDate(day.date) }}</span><b>{{ weatherSymbol(day.weatherCode) }}</b><strong>{{ Math.round(day.temperatureMax) }}°</strong><small>{{ Math.round(day.temperatureMin) }}° · {{ weatherLabel(day.weatherCode) }}</small><em><CloudRain :size="12" />{{ day.precipitationProbability }}%</em><em><Wind :size="12" />{{ day.windSpeed.toFixed(1) }}m/s</em>
+              <span>{{ formatDate(day.date) }}</span><b>{{ weatherSymbol(day.dayCondition) }}</b><strong>{{ day.dayCondition }}</strong><small>夜间 {{ day.nightCondition }}</small>
             </article>
           </div>
-          <small v-if="weather" class="source-line">{{ weather.source }} · 更新 {{ formatTimestamp(weather.fetchedAt) }}</small>
+          <small v-if="weather" class="source-line">{{ weather.source }} · {{ weather.stationName }}站 · 发布 {{ formatTimestamp(weather.publishedAt) }} · 缓存 {{ formatTimestamp(weather.fetchedAt) }}</small>
         </section>
 
         <section class="panel-section windows-section">
@@ -339,13 +328,13 @@ onBeforeUnmount(() => {
           <div class="window-list">
             <article v-for="item in recommendations" :key="item.satellitePass.id" class="window-row">
               <div class="window-date"><strong>{{ formatDate(item.satellitePass.date) }}</strong><span>{{ item.satellitePass.time }}</span></div>
-              <div class="window-main"><strong>{{ item.satellitePass.satellite }} <em class="glint-inline" :class="`glint-${item.satellitePass.glint_risk}`">耀光{{ glintLabel(item.satellitePass.glint_risk) }} {{ item.satellitePass.glint_angle_deg.toFixed(1) }}°</em></strong><span v-if="item.weatherHour">过境云量{{ Math.round(item.weatherHour.cloudCover) }}% · 降水{{ Math.round(item.weatherHour.precipitationProbability) }}% · 风{{ item.weatherHour.windSpeed.toFixed(1) }}m/s</span><span v-else>完整覆盖 · 天气尚未发布</span></div>
+              <div class="window-main"><strong>{{ item.satellitePass.satellite }} <em class="glint-inline" :class="`glint-${item.satellitePass.glint_risk}`">耀光{{ glintLabel(item.satellitePass.glint_risk) }} {{ item.satellitePass.glint_angle_deg.toFixed(1) }}°</em></strong><span v-if="item.weatherDay">白天{{ item.weatherDay.dayCondition }} · 夜间{{ item.weatherDay.nightCondition }}</span><span v-else>完整覆盖 · 天气尚未发布</span></div>
               <div class="window-score" :class="item.level"><b>{{ item.score ?? '—' }}</b><span>{{ item.level }}</span></div>
             </article>
           </div>
         </section>
 
-        <footer><CalendarCheck :size="14" />天气按过境时刻附近的逐小时预报匹配 · 耀光角越小风险越高 · 所有时间均为北京时间</footer>
+        <footer><CalendarCheck :size="14" />天气为中央气象台未来7天文字预报 · 每天09:00更新缓存 · 耀光角越小风险越高 · 所有时间均为北京时间</footer>
       </aside>
     </div>
   </main>

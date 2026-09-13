@@ -19,29 +19,16 @@ export type ReservoirCollection = FeatureCollection<Polygon | MultiPolygon, Rese
 
 export interface WeatherDay {
   date: string
-  weatherCode: number
-  temperatureMax: number
-  temperatureMin: number
-  cloudCover: number
-  precipitationProbability: number
-  precipitation: number
-  windSpeed: number
-  radiation: number
-}
-
-export interface WeatherHour {
-  time: string
-  temperature: number
-  cloudCover: number
-  precipitationProbability: number
-  precipitation: number
-  windSpeed: number
+  dayCondition: string
+  nightCondition: string
 }
 
 export interface WeatherResult {
   days: WeatherDay[]
-  hours: WeatherHour[]
   source: string
+  sourceUrl: string
+  stationName: string
+  publishedAt: string | null
   fetchedAt: string
   cacheStatus: string
 }
@@ -93,7 +80,6 @@ export interface OrbitPassPayload {
 export interface ExperimentRecommendation {
   satellitePass: SatellitePass
   weatherDay: WeatherDay | null
-  weatherHour: WeatherHour | null
   score: number | null
   level: '推荐' | '备选' | '不推荐' | '待预报'
   reasons: string[]

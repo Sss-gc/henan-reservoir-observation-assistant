@@ -2,14 +2,12 @@ import JSZip from 'jszip'
 import { DOMParser, XMLSerializer, type Element as XmlElement } from '@xmldom/xmldom'
 import templateUrl from '../assets/observation-plan-template.docx?url'
 import type { ExperimentRecommendation, OrbitPassPayload, ReservoirProperties, WeatherResult } from '../types'
-import type { ExperimentThresholds } from './recommendation'
 import { isSupportedObservationPass } from './satellite'
 
 export interface ObservationPlanDocumentData {
   reservoir: ReservoirProperties
   recommendations: ExperimentRecommendation[]
   bestRecommendations: ExperimentRecommendation[]
-  thresholds: ExperimentThresholds
   satelliteFilter: string
   orbitPayload: OrbitPassPayload | null
   weather: WeatherResult | null
@@ -86,9 +84,9 @@ function setText(p: XmlElement, value: string, color?: string) {
 
 function populateRow(prototype: XmlElement, item: ExperimentRecommendation) {
   const row = prototype.cloneNode(true) as XmlElement
-  const pass = item.satellitePass, hour = item.weatherHour
+  const pass = item.satellitePass, day = item.weatherDay
   const values = [pass.date, `${pass.satellite}\n${pass.sensor}`,
-    hour ? `云量 ${Math.round(hour.cloudCover)}%\n降水 ${Math.round(hour.precipitationProbability)}%\n风速 ${hour.windSpeed.toFixed(1)} m/s` : '天气尚未发布',
+    day ? `白天 ${day.dayCondition}\n夜间 ${day.nightCondition}` : '天气尚未发布',
     `${{ high: '高', medium: '中', low: '低', minimal: '极低' }[pass.glint_risk]}\n${pass.glint_angle_deg.toFixed(1)}°`,
     item.score === null ? '—' : String(item.score), item.level]
   const color = { 推荐: '13795B', 备选: '9A6700', 不推荐: 'B42318', 待预报: '607D8B' }[item.level]
@@ -111,16 +109,21 @@ export async function createObservationPlanBlob(data: ObservationPlanDocumentDat
     GENERATED: `生成时间：${timestamp(data.generatedAt ?? new Date())}（北京时间）`,
     TOTALS: `本次共纳入 ${items.length} 个完整覆盖窗口，其中推荐 ${items.filter(i => i.level === '推荐').length} 个、备选 ${items.filter(i => i.level === '备选').length} 个、待预报 ${items.filter(i => i.level === '待预报').length} 个。`,
     ORBIT_SOURCE: `轨道数据：CelesTrak OMM / SGP4；静态数据生成时间 ${timestamp(data.orbitPayload?.generated_at)}；轨道历元 ${timestamp(data.orbitPayload?.element_epoch_latest)}。`,
-    WEATHER_SOURCE: `天气数据：${data.weather?.source ?? '天气尚未获取'}；天气更新时间 ${timestamp(data.weather?.fetchedAt)}。逐小时天气按过境时刻附近的预报匹配。`,
+    WEATHER_SOURCE: `天气数据：${data.weather?.source ?? '天气尚未获取'}；参考站点 ${data.weather?.stationName ?? '暂无'}；发布时间 ${timestamp(data.weather?.publishedAt)}；缓存更新时间 ${timestamp(data.weather?.fetchedAt)}。仅使用未来7天昼夜文字天气。`,
     SUMMARY_0_1: p.name_cn, SUMMARY_0_3: p.city,
     SUMMARY_1_1: p.code, SUMMARY_1_3: `${p.area_km2.toFixed(2)} km²`,
     SUMMARY_2_1: `${p.lon.toFixed(4)}, ${p.lat.toFixed(4)}`, SUMMARY_2_3: data.satelliteFilter,
-    SUMMARY_3_1: `云量 ≤ ${data.thresholds.maxCloud}%\n降水概率 ≤ ${data.thresholds.maxRainProbability}%`,
-    SUMMARY_3_3: `≤ ${data.thresholds.maxWind} m/s`,
+    SUMMARY_3_1: '中央气象台7天\n白天 / 夜间天气',
+    SUMMARY_3_3: '文字天气判断',
   }
   for (const paragraph of Array.from(doc.getElementsByTagNameNS(W, 'p'))) {
     const key = (paragraph.textContent ?? '').match(/^\{\{([A-Z0-9_]+)\}\}$/)?.[1]
     if (key && key in replacements) setText(paragraph, replacements[key])
+    if (paragraph.textContent === '天气阈值') setText(paragraph, '天气来源')
+    if (paragraph.textContent === '风速阈值') setText(paragraph, '判断方式')
+    if (paragraph.textContent?.startsWith('用途：依据未来完整覆盖轨道窗口、逐小时天气预报')) {
+      setText(paragraph, '用途：依据未来完整覆盖轨道窗口、中央气象台7天文字天气与水面耀光几何风险，辅助安排现场同步实验。')
+    }
   }
   for (const [index, records] of [[1, best], [2, sortRecommendationsBySatelliteFamily(items)]] as const) {
     const table = tables[index], rows = children(table, 'tr')
@@ -141,7 +144,7 @@ export async function createObservationPlanBlob(data: ObservationPlanDocumentDat
     }
     if (!records.length) {
       const note = children(body, 'p')[7].cloneNode(true) as XmlElement
-      setText(note, index === 1 ? '当前阈值和卫星筛选下暂无“推荐”窗口，请结合全部联合判断选择备选窗口。' : '当前水库和卫星筛选下没有完整覆盖窗口。')
+      setText(note, index === 1 ? '未来7天暂无同时满足天气和耀光条件的“推荐”窗口，请结合全部联合判断选择备选窗口。' : '当前水库和卫星筛选下没有完整覆盖窗口。')
       body.replaceChild(note, table)
     }
   }
