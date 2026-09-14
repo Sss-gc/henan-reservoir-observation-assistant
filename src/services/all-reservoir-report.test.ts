@@ -64,6 +64,7 @@ describe('all-reservoir seven-day report', () => {
     expect(xml.indexOf('Landsat 系列')).toBeLessThan(xml.indexOf('GF / Gaofen 系列'))
     for (const heading of ['水库', '日期', '过境卫星', '白天天气']) expect(xml).toContain(heading)
     expect(xml).not.toContain('2026-09-30')
+    expect(fetch).not.toHaveBeenCalled()
   })
 
   it('omits non-sunny passes and explains why a reservoir has no plan', () => {

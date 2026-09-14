@@ -155,10 +155,25 @@ function timestamp(value: Date) {
   }).format(value)
 }
 
-export async function createAllReservoirReportBlob(data: AllReservoirReportData) {
+async function loadTemplateBytes() {
+  if (templateUrl.startsWith('data:')) {
+    const comma = templateUrl.indexOf(',')
+    if (comma < 0) throw new Error('实验方案模板数据无效')
+    const metadata = templateUrl.slice(0, comma)
+    const payload = templateUrl.slice(comma + 1)
+    if (metadata.endsWith(';base64')) {
+      const binary = atob(payload)
+      return Uint8Array.from(binary, (character) => character.charCodeAt(0)).buffer
+    }
+    return new TextEncoder().encode(decodeURIComponent(payload)).buffer
+  }
   const response = await fetch(templateUrl)
   if (!response.ok) throw new Error('实验方案模板加载失败，请重试')
-  const zip = await JSZip.loadAsync(await response.arrayBuffer())
+  return response.arrayBuffer()
+}
+
+export async function createAllReservoirReportBlob(data: AllReservoirReportData) {
+  const zip = await JSZip.loadAsync(await loadTemplateBytes())
   const doc = new DOMParser().parseFromString(await zip.file('word/document.xml')!.async('string'), 'application/xml')
   const body = doc.getElementsByTagNameNS(W, 'body').item(0)!
   const sectionProps = Array.from(body.childNodes).find((node) => node.nodeType === 1 && node.localName === 'sectPr')
