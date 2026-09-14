@@ -3,6 +3,8 @@ import { spawn } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 
 const PROJECT = 'henan-reservoir-observation-assistant'
+const EMAIL = '306221976@qq.com'
+const LOGIN_URL = `https://${PROJECT}.pages.dev/login`
 const ITERATIONS = 600_000
 const WRANGLER_BIN = fileURLToPath(new URL('../node_modules/wrangler/bin/wrangler.js', import.meta.url))
 
@@ -102,6 +104,29 @@ async function runWranglerDeploy() {
   throw lastError
 }
 
+function verifyProductionLogin(password) {
+  const child = spawn('curl.exe', [
+    '--silent', '--show-error', '--output', 'NUL', '--write-out', '%{http_code}',
+    '--max-time', '30', '--request', 'POST',
+    '--header', `Origin: https://${PROJECT}.pages.dev`,
+    '--header', 'Sec-Fetch-Site: same-origin',
+    '--header', 'Content-Type: application/x-www-form-urlencoded',
+    '--data-binary', '@-', LOGIN_URL,
+  ], { stdio: ['pipe', 'pipe', 'inherit'] })
+  let status = ''
+  child.stdout.setEncoding('utf8')
+  child.stdout.on('data', (chunk) => { status += chunk })
+  child.stdin.end(new URLSearchParams({ email: EMAIL, password }).toString())
+  return new Promise((resolve, reject) => {
+    child.on('error', reject)
+    child.on('exit', (code) => {
+      if (code !== 0) return reject(new Error(`线上登录自检请求失败（退出码 ${code}）。`))
+      if (status.trim() !== '303') return reject(new Error(`线上登录自检未通过（HTTP ${status.trim() || '未知'}），请勿使用当前密码登录。`))
+      resolve()
+    })
+  })
+}
+
 const password = await readHidden('请输入新的站内登录密码（至少 12 位）：')
 const confirmation = await readHidden('请再次输入密码：')
 if (password !== confirmation) throw new Error('两次输入的密码不一致。')
@@ -120,4 +145,7 @@ for (const environment of ['production', 'preview']) {
 
 process.stdout.write('正在重新部署站点，使新密码立即生效…\n')
 await runWranglerDeploy()
+process.stdout.write('正在执行线上密码自检（不会显示或保存密码）…\n')
+await verifyProductionLogin(password)
 process.stdout.write('站内登录密码和会话密钥已加密保存并部署到 Cloudflare；明文密码未写入磁盘。\n')
+process.stdout.write('线上登录自检通过，可以使用该密码登录。\n')
