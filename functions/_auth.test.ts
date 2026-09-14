@@ -38,5 +38,7 @@ describe('Pages authentication primitives', () => {
     expect(sessionCookie('token')).toContain('__Host-hroa_session=token; Path=/; HttpOnly; Secure; SameSite=Lax')
     expect(isSameOriginFormPost(new Request('https://example.com/login', { method: 'POST', headers: { Origin: 'https://example.com' } }))).toBe(true)
     expect(isSameOriginFormPost(new Request('https://example.com/login', { method: 'POST', headers: { Origin: 'https://attacker.example' } }))).toBe(false)
+    expect(isSameOriginFormPost(new Request('https://example.com/login', { method: 'POST', headers: { Origin: 'null', 'Sec-Fetch-Site': 'same-origin' } }))).toBe(true)
+    expect(isSameOriginFormPost(new Request('https://example.com/login', { method: 'POST', headers: { Origin: 'null', 'Sec-Fetch-Site': 'cross-site' } }))).toBe(false)
   })
 })

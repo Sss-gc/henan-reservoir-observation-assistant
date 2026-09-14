@@ -109,8 +109,11 @@ export function expiredSessionCookie() {
 export function isSameOriginFormPost(request: Request) {
   const url = new URL(request.url)
   const origin = request.headers.get('Origin')
-  if (origin) return origin === url.origin
   const fetchSite = request.headers.get('Sec-Fetch-Site')
+  if (origin && origin !== 'null') return origin === url.origin
+  // Sandboxed in-app browsers legitimately serialize their opaque origin as
+  // "null". In that case, retain browser-enforced Fetch Metadata protection.
+  if (origin === 'null') return fetchSite !== 'cross-site'
   return !fetchSite || fetchSite === 'same-origin' || fetchSite === 'same-site' || fetchSite === 'none'
 }
 
