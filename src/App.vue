@@ -4,7 +4,7 @@ import * as L from 'leaflet'
 import type { GeoJsonObject } from 'geojson'
 import {
   CalendarCheck, ChevronLeft, ChevronRight, CircleAlert, CloudSun,
-  DatabaseZap, FileDown, LocateFixed, MapPinned, Menu, RefreshCw, Search,
+  DatabaseZap, ExternalLink, FileDown, LocateFixed, MapPinned, Menu, RefreshCw, Search,
   LogOut, Satellite, X,
 } from 'lucide-vue-next'
 import type {
@@ -329,7 +329,12 @@ onBeforeUnmount(() => {
               <span>{{ formatDate(day.date) }}</span><b>{{ weatherSymbol(day.dayCondition) }}</b><strong>{{ day.dayCondition }}</strong><small>夜间 {{ day.nightCondition }}</small>
             </article>
           </div>
-          <small v-if="weather" class="source-line">{{ weather.source }} · {{ weather.stationName }}站 · 发布 {{ formatTimestamp(weather.publishedAt) }} · 缓存 {{ formatTimestamp(weather.fetchedAt) }}</small>
+          <small v-if="weather" class="source-line">
+            <span>{{ weather.source }} · {{ weather.stationName }}站 · 发布 {{ formatTimestamp(weather.publishedAt) }} · 缓存 {{ formatTimestamp(weather.fetchedAt) }}</span>
+            <a :href="weather.sourceUrl" target="_blank" rel="noopener noreferrer" :aria-label="`打开中央气象台${weather.stationName}站官方预报`">
+              查看{{ weather.stationName }}站官方预报<ExternalLink :size="11" />
+            </a>
+          </small>
         </section>
 
         <section class="panel-section windows-section">

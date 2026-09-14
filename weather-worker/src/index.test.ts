@@ -58,5 +58,7 @@ describe('NMC text forecast parser', () => {
     expect(snapshot.reservoirs.HN_RSV_001.fetchedAt).toBe('2026-09-13T01:00:00.000Z')
     expect(snapshot.reservoirs.HN_RSV_002.forecast[0].date).toBe('2026-09-14')
     expect(snapshot.reservoirs.HN_RSV_002.fetchedAt).toBe('2026-09-14T01:00:00.000Z')
+    expect(snapshot.reservoirs.HN_RSV_021.sourceUrl).toBe('https://www.nmc.cn/publish/forecast/AHA/xinyang.html')
+    expect(snapshot.reservoirs.HN_RSV_024.sourceUrl).toBe('https://www.nmc.cn/publish/forecast/AHA/zuochuan2.html')
   })
 })
