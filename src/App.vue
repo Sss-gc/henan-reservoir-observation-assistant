@@ -13,6 +13,8 @@ import type {
 import { fetchAllWeather, fetchWeather, weatherSymbol } from './services/weather'
 import { isSupportedObservationPass, normalizeObservationPass } from './services/satellite'
 import { buildExperimentRecommendation } from './services/recommendation'
+import { downloadObservationPlan } from './services/document'
+import { downloadAllReservoirReport } from './services/all-reservoir-report'
 
 const mapElement = ref<HTMLDivElement | null>(null)
 const reservoirs = ref<ReservoirFeature[]>([])
@@ -29,6 +31,7 @@ const selectedSatellite = ref('全部卫星')
 const listOpenOnMobile = ref(false)
 const weatherStrip = ref<HTMLDivElement | null>(null)
 const satelliteFilterStrip = ref<HTMLDivElement | null>(null)
+const orbitFilterStrip = ref<HTMLDivElement | null>(null)
 const documentDownloading = ref(false)
 const documentError = ref('')
 const allReportDownloading = ref(false)
@@ -113,6 +116,10 @@ function scrollSatelliteFilters(direction: number) {
   satelliteFilterStrip.value?.scrollBy({ left: direction * 240, behavior: 'smooth' })
 }
 
+function scrollOrbitFilters(direction: number) {
+  orbitFilterStrip.value?.scrollBy({ left: direction * 240, behavior: 'smooth' })
+}
+
 function scrollFiltersWithWheel(event: WheelEvent) {
   const strip = event.currentTarget as HTMLDivElement | null
   if (!strip || Math.abs(event.deltaY) <= Math.abs(event.deltaX)) return
@@ -138,7 +145,6 @@ async function downloadPlanDocument() {
   documentDownloading.value = true
   documentError.value = ''
   try {
-    const { downloadObservationPlan } = await import('./services/document')
     const reservoirRecommendations = (orbitPayload.value?.items ?? [])
       .filter((item) => item.reservoir_id === selected.value!.properties.id)
       .map((item) => buildExperimentRecommendation(item, weather.value))
@@ -165,7 +171,6 @@ async function downloadAllPlans() {
     const weatherByReservoir = await fetchAllWeather()
     const failedReservoirIds = reservoirs.value.map((feature) => feature.properties.id)
       .filter((id) => !weatherByReservoir[id])
-    const { downloadAllReservoirReport } = await import('./services/all-reservoir-report')
     await downloadAllReservoirReport({
       reservoirs: reservoirs.value.map((feature) => feature.properties),
       orbitPayload: orbitPayload.value,
@@ -396,6 +401,22 @@ onBeforeUnmount(() => {
               <div class="window-score" :class="item.level"><b>{{ item.score ?? '—' }}</b><span>{{ item.level }}</span></div>
             </article>
             <div v-if="!sunnyRecommendations.length && weather" class="empty-recommendation">{{ unavailableWeatherSummary }}</div>
+          </div>
+        </section>
+
+        <section class="panel-section overpass-section">
+          <div class="section-heading"><div><p class="eyebrow">SATELLITE OVERPASS</p><h3>卫星过境时间</h3></div><div class="section-heading-actions"><span>{{ selectedPasses.length }}个窗口</span><div class="scroll-buttons"><button aria-label="向左查看过境卫星" @click="scrollOrbitFilters(-1)"><ChevronLeft :size="16" /></button><button aria-label="向右查看过境卫星" @click="scrollOrbitFilters(1)"><ChevronRight :size="16" /></button></div></div></div>
+          <p class="section-note">显示未来30天所有完整覆盖过境，不受天气条件筛选。</p>
+          <div ref="orbitFilterStrip" class="satellite-filters" aria-label="筛选过境卫星" @wheel="scrollFiltersWithWheel">
+            <button v-for="name in satelliteOptions" :key="name" :class="{ active: selectedSatellite === name }" :aria-pressed="selectedSatellite === name" @click="selectedSatellite = name">{{ name }}</button>
+          </div>
+          <div class="window-list">
+            <article v-for="pass in selectedPasses" :key="`overpass-${pass.id}`" class="window-row">
+              <div class="window-date"><strong>{{ formatDate(pass.date) }}</strong><span>{{ pass.time }}</span></div>
+              <div class="window-main"><strong>{{ pass.satellite }}</strong><span>北京时间 · 完整覆盖</span></div>
+              <div class="overpass-coverage">完整覆盖</div>
+            </article>
+            <div v-if="!selectedPasses.length" class="empty-recommendation">当前筛选下暂无完整覆盖过境时间。</div>
           </div>
         </section>
 

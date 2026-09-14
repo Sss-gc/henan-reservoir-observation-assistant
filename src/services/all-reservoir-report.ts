@@ -1,6 +1,6 @@
 import JSZip from 'jszip'
 import { DOMParser, XMLSerializer, type Element as XmlElement } from '@xmldom/xmldom'
-import templateUrl from '../assets/observation-plan-template.docx?url'
+import templateUrl from '../assets/observation-plan-template.docx?inline'
 import type { OrbitPassPayload, ReservoirProperties, SatellitePass, WeatherResult } from '../types'
 import { isSupportedObservationPass } from './satellite'
 

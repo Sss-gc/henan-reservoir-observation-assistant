@@ -57,7 +57,21 @@ export async function fetchAllWeather(): Promise<Record<string, WeatherResult>> 
   const day = beijingDay()
   if (dailyAllWeatherCache?.day === day) return dailyAllWeatherCache.request
   const request = (async () => {
-    const response = await fetch('/api/weather?all=1', { headers: { Accept: 'application/json' } })
+    let response: Response | null = null
+    let networkError: unknown = null
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      try {
+        response = await fetch('/api/weather?all=1', {
+          headers: { Accept: 'application/json' },
+          credentials: 'same-origin',
+        })
+        break
+      } catch (error) {
+        networkError = error
+        if (attempt === 0) await new Promise((resolve) => setTimeout(resolve, 350))
+      }
+    }
+    if (!response) throw networkError instanceof Error ? networkError : new Error('天气缓存连接失败')
     const body = await response.json().catch(() => null) as { error?: string, items?: Record<string, unknown> } | null
     if (!response.ok) throw new Error(body?.error ?? `天气接口返回HTTP ${response.status}`)
     if (!body?.items || typeof body.items !== 'object') throw new Error('批量天气缓存格式不完整')
