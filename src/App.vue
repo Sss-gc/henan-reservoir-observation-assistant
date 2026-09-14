@@ -168,9 +168,17 @@ async function downloadAllPlans() {
   allReportDownloading.value = true
   allReportError.value = ''
   try {
-    const weatherByReservoir = await fetchAllWeather()
-    const failedReservoirIds = reservoirs.value.map((feature) => feature.properties.id)
-      .filter((id) => !weatherByReservoir[id])
+    let weatherByReservoir: Record<string, WeatherResult> = {}
+    let failedReservoirIds: string[] = []
+    try {
+      weatherByReservoir = await fetchAllWeather()
+      failedReservoirIds = reservoirs.value.map((feature) => feature.properties.id)
+        .filter((id) => !weatherByReservoir[id])
+    } catch {
+      // A transient cache/API failure must not prevent a downloadable report.
+      // The generated document will list every reservoir as weather-undetermined.
+      failedReservoirIds = reservoirs.value.map((feature) => feature.properties.id)
+    }
     await downloadAllReservoirReport({
       reservoirs: reservoirs.value.map((feature) => feature.properties),
       orbitPayload: orbitPayload.value,
