@@ -1,7 +1,7 @@
 import type { ExperimentRecommendation, SatellitePass, WeatherResult } from '../types'
 
 const GLINT_LABEL = { high: '高', medium: '中', low: '低', minimal: '极低' }
-const GLINT_PENALTY = { high: 35, medium: 20, low: 5, minimal: 0 }
+const GLINT_PENALTY = { high: 20, medium: 10, low: 5, minimal: 0 }
 
 function weatherBaseScore(condition: string) {
   if (/雷|雨|雪|冰雹|雾|霾|沙尘|台风/.test(condition)) return 20
@@ -27,16 +27,14 @@ export function buildExperimentRecommendation(
     }
   }
 
-  const score = Math.max(0, weatherBaseScore(day.dayCondition) - GLINT_PENALTY[pass.glint_risk])
-  const hazardous = /雷|雨|雪|冰雹|雾|霾|沙尘|台风/.test(day.dayCondition)
-  const level = !hazardous && day.dayCondition.includes('晴') && ['low', 'minimal'].includes(pass.glint_risk) && score >= 75
-    ? '推荐'
-    : score >= 55 && pass.glint_risk !== 'high' ? '备选' : '不推荐'
+  const sunny = day.dayCondition.trim() === '晴'
+  const score = sunny ? 100 - GLINT_PENALTY[pass.glint_risk] : weatherBaseScore(day.dayCondition)
+  const level = sunny ? '推荐' : '不推荐'
   return {
     satellitePass: pass,
     weatherDay: day,
     score,
     level,
-    reasons: [`白天${day.dayCondition}（夜间${day.nightCondition}）`, glintReason],
+    reasons: [sunny ? '白天天气为晴，符合出差实验条件' : `白天${day.dayCondition}，不符合晴天出差条件`, glintReason],
   }
 }

@@ -37,9 +37,15 @@ describe('experiment recommendation', () => {
     expect(buildExperimentRecommendation(satellitePass, weather('中雨')).level).toBe('不推荐')
   })
 
-  it('does not recommend a geometrically high-risk sunglint window', () => {
+  it('keeps a sunny window recommended while retaining the sunglint warning', () => {
     const result = buildExperimentRecommendation({ ...satellitePass, glint_angle_deg: 6, glint_risk: 'high' }, weather('晴'))
-    expect(result.level).not.toBe('推荐')
+    expect(result.level).toBe('推荐')
     expect(result.reasons.at(-1)).toContain('耀光高风险')
+  })
+
+  it('requires the daytime condition to be exactly sunny', () => {
+    const result = buildExperimentRecommendation(satellitePass, weather('晴转多云'))
+    expect(result.level).toBe('不推荐')
+    expect(result.reasons[0]).toContain('不符合晴天出差条件')
   })
 })

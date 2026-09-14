@@ -62,10 +62,13 @@ const selectedPasses = computed(() => {
 const satelliteOptions = computed(() => {
   const reservoirId = selected.value?.properties.id
   const passes = (orbitPayload.value?.items ?? []).filter((item) => item.reservoir_id === reservoirId)
-  return ['全部卫星', ...new Set(passes.map((item) => item.satellite))]
+  const order = (name: string) => name.startsWith('Sentinel') ? 0 : name.startsWith('HJ') ? 1 : name.startsWith('Landsat') ? 2 : 3
+  return ['全部卫星', ...[...new Set(passes.map((item) => item.satellite))]
+    .sort((a, b) => order(a) - order(b) || a.localeCompare(b, 'zh-CN', { numeric: true }))]
 })
 
 const recommendations = computed(() => selectedPasses.value.map((item) => buildExperimentRecommendation(item, weather.value)))
+const sunnyRecommendations = computed(() => recommendations.value.filter((item) => item.level === '推荐'))
 const rankedRecommendations = computed(() => [...recommendations.value].sort((a, b) => {
   if (a.score === null && b.score === null) return a.satellitePass.date.localeCompare(b.satellitePass.date)
   if (a.score === null) return 1
@@ -73,6 +76,14 @@ const rankedRecommendations = computed(() => [...recommendations.value].sort((a,
   return b.score - a.score || a.satellitePass.date.localeCompare(b.satellitePass.date)
 }))
 const bestRecommendations = computed(() => rankedRecommendations.value.filter((item) => item.level === '推荐').slice(0, 4))
+const unavailableWeatherSummary = computed(() => {
+  if (!weather.value) return '天气数据尚未获取，暂不能判定晴天实验窗口。'
+  const forecastDates = new Set(weather.value.days.map((day) => day.date))
+  const forecastPasses = selectedPasses.value.filter((pass) => forecastDates.has(pass.date))
+  if (!forecastPasses.length) return '未来7天无完整覆盖过境窗口。'
+  const conditions = [...new Set(forecastPasses.map((pass) => weather.value!.days.find((day) => day.date === pass.date)!.dayCondition))]
+  return `未来7天有 ${forecastPasses.length} 个完整覆盖窗口，但白天天气为${conditions.join('、')}，不符合晴天出差条件。`
+})
 
 function formatDate(date: string, includeYear = false) {
   const value = new Date(`${date}T00:00:00+08:00`)
@@ -128,9 +139,12 @@ async function downloadPlanDocument() {
   documentError.value = ''
   try {
     const { downloadObservationPlan } = await import('./services/document')
+    const reservoirRecommendations = (orbitPayload.value?.items ?? [])
+      .filter((item) => item.reservoir_id === selected.value!.properties.id)
+      .map((item) => buildExperimentRecommendation(item, weather.value))
     await downloadObservationPlan({
       reservoir: selected.value.properties,
-      recommendations: recommendations.value,
+      recommendations: reservoirRecommendations,
       bestRecommendations: bestRecommendations.value,
       satelliteFilter: selectedSatellite.value,
       orbitPayload: orbitPayload.value,
@@ -325,10 +339,10 @@ onBeforeUnmount(() => {
           <div class="data-freshness"><span>轨道生成 {{ formatTimestamp(orbitPayload?.generated_at) }}</span><span>轨道历元 {{ formatTimestamp(orbitPayload?.element_epoch_latest) }}</span></div>
         </section>
 
-        <section class="notice"><CircleAlert :size="16" /><p>窗口表示轨道和幅宽可完整覆盖水库，不代表卫星运营方已确认成像。耀光按太阳—平静水面—卫星镜面反射几何估算，中高风险窗口已从“推荐”中排除；风浪与实际姿态仍会改变结果，出发前请再次核验。</p></section>
+        <section class="notice"><CircleAlert :size="16" /><p>推荐日期先按卫星完整覆盖过境窗口匹配中央气象台当天预报，仅保留白天天气严格为“晴”的窗口。耀光风险继续作为现场参考，不再改变晴天筛选结果；卫星实际成像仍需出发前核验。</p></section>
 
         <section class="all-report-card">
-          <div><p class="eyebrow">ALL RESERVOIRS · 7 DAYS</p><h3>全部水库实验方案简报</h3><span>日期 · 过境卫星 · 天气状况</span></div>
+          <div><p class="eyebrow">ALL RESERVOIRS · 7 DAYS</p><h3>全部水库晴天实验方案</h3><span>仅保留白天晴 · 按四类卫星分组</span></div>
           <button class="all-report-download" :disabled="allReportDownloading" @click="downloadAllPlans">
             <RefreshCw v-if="allReportDownloading" class="spin" :size="15" /><FileDown v-else :size="15" />
             {{ allReportDownloading ? '正在汇总' : '一键下载' }}
@@ -352,7 +366,7 @@ onBeforeUnmount(() => {
               <p>{{ item.reasons.join(' · ') }}</p>
             </article>
           </div>
-          <div v-else-if="weather" class="empty-recommendation">未来7天暂无同时满足晴天和低耀光条件的“推荐”窗口。</div>
+          <div v-else-if="weather" class="empty-recommendation">{{ unavailableWeatherSummary }}</div>
         </section>
 
         <section class="panel-section weather-section">
@@ -371,16 +385,17 @@ onBeforeUnmount(() => {
         </section>
 
         <section class="panel-section windows-section">
-          <div class="section-heading"><div><p class="eyebrow">WEATHER × ORBIT</p><h3>全部联合判断</h3></div><div class="section-heading-actions"><span>{{ selectedPasses.length }}个窗口</span><div class="scroll-buttons"><button aria-label="向左查看卫星" @click="scrollSatelliteFilters(-1)"><ChevronLeft :size="16" /></button><button aria-label="向右查看卫星" @click="scrollSatelliteFilters(1)"><ChevronRight :size="16" /></button></div></div></div>
+          <div class="section-heading"><div><p class="eyebrow">SUNNY WEATHER × ORBIT</p><h3>晴天完整覆盖窗口</h3></div><div class="section-heading-actions"><span>{{ sunnyRecommendations.length }}个窗口</span><div class="scroll-buttons"><button aria-label="向左查看卫星" @click="scrollSatelliteFilters(-1)"><ChevronLeft :size="16" /></button><button aria-label="向右查看卫星" @click="scrollSatelliteFilters(1)"><ChevronRight :size="16" /></button></div></div></div>
           <div ref="satelliteFilterStrip" class="satellite-filters" @wheel="scrollFiltersWithWheel">
             <button v-for="name in satelliteOptions" :key="name" :class="{ active: selectedSatellite === name }" :aria-pressed="selectedSatellite === name" @click="selectedSatellite = name">{{ name }}</button>
           </div>
           <div class="window-list">
-            <article v-for="item in recommendations" :key="item.satellitePass.id" class="window-row">
+            <article v-for="item in sunnyRecommendations" :key="item.satellitePass.id" class="window-row">
               <div class="window-date"><strong>{{ formatDate(item.satellitePass.date) }}</strong><span>{{ item.satellitePass.time }}</span></div>
-              <div class="window-main"><strong>{{ item.satellitePass.satellite }} <em class="glint-inline" :class="`glint-${item.satellitePass.glint_risk}`">耀光{{ glintLabel(item.satellitePass.glint_risk) }} {{ item.satellitePass.glint_angle_deg.toFixed(1) }}°</em></strong><span v-if="item.weatherDay">白天{{ item.weatherDay.dayCondition }} · 夜间{{ item.weatherDay.nightCondition }}</span><span v-else>完整覆盖 · 天气尚未发布</span></div>
+              <div class="window-main"><strong>{{ item.satellitePass.satellite }} <em class="glint-inline" :class="`glint-${item.satellitePass.glint_risk}`">耀光{{ glintLabel(item.satellitePass.glint_risk) }} {{ item.satellitePass.glint_angle_deg.toFixed(1) }}°</em></strong><span>白天晴 · 完整覆盖</span></div>
               <div class="window-score" :class="item.level"><b>{{ item.score ?? '—' }}</b><span>{{ item.level }}</span></div>
             </article>
+            <div v-if="!sunnyRecommendations.length && weather" class="empty-recommendation">{{ unavailableWeatherSummary }}</div>
           </div>
         </section>
 

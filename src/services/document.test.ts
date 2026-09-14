@@ -27,6 +27,7 @@ const recommendation: ExperimentRecommendation = {
 const withSatellite = (satellite: string, date: string): ExperimentRecommendation => ({
   ...recommendation,
   satellitePass: { ...recommendation.satellitePass, id: `${satellite}-${date}`, satellite, date, sensor: satellite === 'HJ-2B' ? HJ_CCD_SENSOR : 'MSI' },
+  weatherDay: { ...recommendation.weatherDay!, date },
 })
 
 const mixedSatelliteRecommendations = [
@@ -74,12 +75,14 @@ describe('observation plan document', () => {
     const parsed = new DOMParser().parseFromString(xml, 'application/xml')
     const tables = parsed.getElementsByTagName('w:tbl')
     expect(tables.length).toBe(4)
-    const firstBest = tables[1].getElementsByTagName('w:tr')[1]
-    expect(firstBest.textContent).toContain('Sentinel')
-    for (const index of [1, 2]) {
+    const firstSentinel = tables[0].getElementsByTagName('w:tr')[1]
+    expect(firstSentinel.textContent).toContain('Sentinel')
+    for (const index of [0, 1, 2, 3]) {
       for (const row of Array.from(tables[index].getElementsByTagName('w:tr')).slice(1)) {
         const cells = row.getElementsByTagName('w:tc')
-        if (cells.length === 6) expect(cells[0].textContent).toMatch(/^\d{4}-\d{2}-\d{2}$/)
+        expect(cells).toHaveLength(4)
+        expect(cells[1].textContent).toMatch(/^\d{4}-\d{2}-\d{2}$/)
+        expect(cells[3].textContent).toBe('晴')
       }
     }
     const templateZip = await JSZip.loadAsync(await readFile('src/assets/observation-plan-template.docx'))
@@ -96,7 +99,7 @@ describe('observation plan document', () => {
 
   it('sanitizes file names and uses the Beijing calendar date', () => {
     expect(observationPlanFileName('白沙/水库:*?', new Date('2026-09-01T16:30:00Z')))
-      .toBe('白沙_水库_遥感观测实验计划_20260902.docx')
+      .toBe('白沙_水库_未来7天晴天实验方案_20260902.docx')
   })
 
   it('groups joint judgments as Sentinel, HJ, Landsat, then GF', () => {
@@ -134,8 +137,8 @@ describe('observation plan document', () => {
     })
     const zip = await JSZip.loadAsync(await blob.arrayBuffer())
     const xml = await zip.file('word/document.xml')!.async('string')
-    expect(xml).toContain('暂无同时满足天气和耀光条件的“推荐”窗口')
-    expect(xml).toContain('没有完整覆盖窗口')
+    expect(xml).toContain('天气数据未获取，暂不能判定')
+    expect(xml).toContain('未来7天无可判定的完整覆盖过境窗口')
     expect(xml).not.toContain('{{')
     expect(xml).not.toContain('Sentinel-2C')
     expect(await zip.file('docProps/core.xml')!.async('string')).not.toContain('W3CDTF')

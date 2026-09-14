@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises'
 import JSZip from 'jszip'
 import type { AllReservoirReportData } from './all-reservoir-report'
 import type { SatellitePass } from '../types'
-import { allReservoirReportFileName, buildAllReservoirReportRecords, createAllReservoirReportBlob } from './all-reservoir-report'
+import { allReservoirReportFileName, buildAllReservoirReportRecords, buildUnavailableReservoirRecords, createAllReservoirReportBlob } from './all-reservoir-report'
 
 const reservoir = {
   id: 'r1', code: 'HN-001', name_cn: '测试水库', city: '郑州市', lon: 113.6, lat: 34.7,
@@ -51,7 +51,7 @@ describe('all-reservoir seven-day report', () => {
     const records = buildAllReservoirReportRecords(data)
     expect(records.map((item) => item.satellitePass.satellite))
       .toEqual(['Sentinel-2C', 'HJ-2B', 'Landsat 9', 'Gaofen-1'])
-    expect(records.every((item) => item.weather === '白天晴 / 夜间多云')).toBe(true)
+    expect(records.every((item) => item.weather === '晴')).toBe(true)
   })
 
   it('creates a concise docx with all four family sections and requested columns', async () => {
@@ -62,12 +62,19 @@ describe('all-reservoir seven-day report', () => {
     expect(xml.indexOf('Sentinel 系列')).toBeLessThan(xml.indexOf('HJ 系列'))
     expect(xml.indexOf('HJ 系列')).toBeLessThan(xml.indexOf('Landsat 系列'))
     expect(xml.indexOf('Landsat 系列')).toBeLessThan(xml.indexOf('GF / Gaofen 系列'))
-    for (const heading of ['水库', '日期', '过境卫星', '天气状况']) expect(xml).toContain(heading)
+    for (const heading of ['水库', '日期', '过境卫星', '白天天气']) expect(xml).toContain(heading)
     expect(xml).not.toContain('2026-09-30')
+  })
+
+  it('omits non-sunny passes and explains why a reservoir has no plan', () => {
+    const cloudy = structuredClone(data)
+    cloudy.weatherByReservoir.r1.days[0].dayCondition = '多云'
+    expect(buildAllReservoirReportRecords(cloudy)).toEqual([])
+    expect(buildUnavailableReservoirRecords(cloudy)[0].reason).toContain('天气不符（多云）')
   })
 
   it('uses the Beijing date in the report filename', () => {
     expect(allReservoirReportFileName(new Date('2026-09-14T16:30:00Z')))
-      .toBe('全部水库_未来7天完整覆盖实验方案简报_20260915.docx')
+      .toBe('全部水库_未来7天晴天实验方案简报_20260915.docx')
   })
 })
