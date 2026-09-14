@@ -73,6 +73,35 @@ async function runWranglerSecret(name, value, environment) {
   throw lastError
 }
 
+function runWranglerDeployOnce() {
+  const child = spawn(process.execPath, [
+    WRANGLER_BIN, 'pages', 'deploy', 'dist',
+    '--project-name', PROJECT, '--branch', 'main', '--commit-dirty=true',
+  ], { stdio: 'inherit' })
+  return new Promise((resolve, reject) => {
+    child.on('error', reject)
+    child.on('exit', (code) => code === 0 ? resolve() : reject(new Error(`Wrangler 重新部署失败（退出码 ${code}）。`)))
+  })
+}
+
+async function runWranglerDeploy() {
+  const delays = [0, 2_000, 5_000, 10_000]
+  let lastError
+  for (const [index, delay] of delays.entries()) {
+    if (delay) {
+      process.stdout.write(`部署连接失败，${delay / 1_000} 秒后自动重试（${index + 1}/${delays.length}）…\n`)
+      await new Promise((resolve) => setTimeout(resolve, delay))
+    }
+    try {
+      await runWranglerDeployOnce()
+      return
+    } catch (error) {
+      lastError = error
+    }
+  }
+  throw lastError
+}
+
 const password = await readHidden('请输入新的站内登录密码（至少 12 位）：')
 const confirmation = await readHidden('请再次输入密码：')
 if (password !== confirmation) throw new Error('两次输入的密码不一致。')
@@ -89,4 +118,6 @@ for (const environment of ['production', 'preview']) {
   await runWranglerSecret('AUTH_SESSION_SECRET', sessionSecret, environment)
 }
 
-process.stdout.write('站内登录密码和会话密钥已加密保存到 Cloudflare；明文密码未写入磁盘。\n')
+process.stdout.write('正在重新部署站点，使新密码立即生效…\n')
+await runWranglerDeploy()
+process.stdout.write('站内登录密码和会话密钥已加密保存并部署到 Cloudflare；明文密码未写入磁盘。\n')
