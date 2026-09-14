@@ -75,8 +75,8 @@ export async function fetchAllWeather(): Promise<Record<string, WeatherResult>> 
     const body = await response.json().catch(() => null) as { error?: string, items?: Record<string, unknown> } | null
     if (!response.ok) throw new Error(body?.error ?? `天气接口返回HTTP ${response.status}`)
     if (!body?.items || typeof body.items !== 'object') throw new Error('批量天气缓存格式不完整')
-    const items = Object.entries(body.items)
-    if (!items.length || items.some(([, value]) => !isWeatherResult(value))) throw new Error('批量天气缓存格式不完整')
+    const items = Object.entries(body.items).filter(([, value]) => isWeatherResult(value))
+    if (!items.length) throw new Error('批量天气缓存格式不完整')
     return Object.fromEntries(items) as Record<string, WeatherResult>
   })()
   dailyAllWeatherCache = { day, request }

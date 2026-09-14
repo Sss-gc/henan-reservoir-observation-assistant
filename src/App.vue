@@ -21,6 +21,7 @@ const reservoirs = ref<ReservoirFeature[]>([])
 const selected = ref<ReservoirFeature | null>(null)
 const orbitPayload = ref<OrbitPassPayload | null>(null)
 const weather = ref<WeatherResult | null>(null)
+const weatherByReservoir = ref<Record<string, WeatherResult>>({})
 const loading = ref(true)
 const weatherLoading = ref(false)
 const loadError = ref('')
@@ -238,7 +239,10 @@ async function loadSelectedWeather() {
   weatherError.value = ''
   weather.value = null
   try {
-    const result = await fetchWeather(feature.properties.id)
+    const cached = weatherByReservoir.value[feature.properties.id]
+    const batch = cached ? weatherByReservoir.value : await fetchAllWeather().catch(() => null)
+    const result = batch?.[feature.properties.id] ?? await fetchWeather(feature.properties.id)
+    weatherByReservoir.value = { ...weatherByReservoir.value, ...(batch ?? {}), [feature.properties.id]: result }
     if (requestId === weatherRequest) weather.value = result
   } catch (error) {
     if (requestId === weatherRequest) {
