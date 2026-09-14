@@ -425,7 +425,7 @@ onBeforeUnmount(() => {
           <div class="window-list">
             <article v-for="pass in selectedPasses" :key="`overpass-${pass.id}`" class="window-row">
               <div class="window-date"><strong>{{ formatDate(pass.date) }}</strong><span>{{ pass.time }}</span></div>
-              <div class="window-main"><strong>{{ pass.satellite }}</strong><span>北京时间 · 完整覆盖</span></div>
+              <div class="window-main"><strong>{{ pass.satellite }} <em class="glint-inline" :class="`glint-${pass.glint_risk}`">耀光{{ glintLabel(pass.glint_risk) }} {{ pass.glint_angle_deg.toFixed(1) }}°</em></strong><span>北京时间 · 完整覆盖</span></div>
               <div class="overpass-coverage">完整覆盖</div>
             </article>
             <div v-if="!selectedPasses.length" class="empty-recommendation">当前筛选下暂无完整覆盖过境时间。</div>
