@@ -87,14 +87,15 @@ function append(parent: XmlElement, name: string, attrs: Record<string, string> 
   return node
 }
 
-function paragraph(parent: XmlElement, value: string, options: { bold?: boolean, size?: number, color?: string, after?: number, keepNext?: boolean } = {}) {
+function paragraph(parent: XmlElement, value: string, options: { bold?: boolean, size?: number, color?: string, after?: number, keepNext?: boolean, align?: 'left' | 'center' | 'right' } = {}) {
   const p = append(parent, 'p')
   const pPr = append(p, 'pPr')
   if (options.after !== undefined) append(pPr, 'spacing', { after: String(options.after) })
   if (options.keepNext) append(pPr, 'keepNext')
+  if (options.align) append(pPr, 'jc', { val: options.align })
   const run = append(p, 'r')
   const rPr = append(run, 'rPr')
-  append(rPr, 'rFonts', { ascii: 'Times New Roman', hAnsi: 'Times New Roman', eastAsia: '宋体' })
+  append(rPr, 'rFonts', { ascii: 'Times New Roman', hAnsi: 'Times New Roman', cs: 'Times New Roman', eastAsia: '宋体' })
   if (options.bold) append(rPr, 'b')
   if (options.size) { append(rPr, 'sz', { val: String(options.size) }); append(rPr, 'szCs', { val: String(options.size) }) }
   if (options.color) append(rPr, 'color', { val: options.color })
@@ -110,13 +111,14 @@ function tableCell(row: XmlElement, value: string, width: number, header = false
   append(cellPr, 'tcW', { w: String(width), type: 'dxa' })
   append(cellPr, 'vAlign', { val: 'center' })
   if (header) append(cellPr, 'shd', { fill: 'D9EDE9' })
-  paragraph(cell, value, { bold: header, size: 19, after: 0 })
+  paragraph(cell, value, { bold: header, size: 19, after: 0, align: 'center' })
 }
 
 function reportTable(parent: XmlElement, records: AllReservoirReportRecord[]) {
   const table = append(parent, 'tbl')
   const props = append(table, 'tblPr')
   append(props, 'tblW', { w: '8800', type: 'dxa' })
+  append(props, 'jc', { val: 'center' })
   append(props, 'tblLayout', { type: 'fixed' })
   const borders = append(props, 'tblBorders')
   for (const name of ['top', 'left', 'bottom', 'right', 'insideH', 'insideV']) append(borders, name, { val: 'single', sz: '4', color: 'A8C5C1' })
@@ -137,6 +139,7 @@ function unavailableTable(parent: XmlElement, records: UnavailableReservoirRecor
   const table = append(parent, 'tbl')
   const props = append(table, 'tblPr')
   append(props, 'tblW', { w: '8800', type: 'dxa' })
+  append(props, 'jc', { val: 'center' })
   append(props, 'tblLayout', { type: 'fixed' })
   const borders = append(props, 'tblBorders')
   for (const name of ['top', 'left', 'bottom', 'right', 'insideH', 'insideV']) append(borders, name, { val: 'single', sz: '4', color: 'A8C5C1' })
