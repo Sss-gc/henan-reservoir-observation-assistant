@@ -83,7 +83,7 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
   if (!isSameOriginFormPost(context.request)) return loginPage('', '请求来源无效，请刷新页面后重试。', 403)
   const contentLength = Number(context.request.headers.get('Content-Length') ?? 0)
   if (contentLength > MAX_FORM_BYTES) return loginPage('', '提交内容过大。', 413)
-  if (!context.env.AUTH_PASSWORD_HASH || !context.env.AUTH_SESSION_SECRET || !context.env.AUTH_EMAIL) {
+  if (!context.env.AUTH_PASSWORD || !context.env.AUTH_SESSION_SECRET || !context.env.AUTH_EMAIL) {
     return loginPage('', '登录服务尚未完成配置，请稍后重试。', 503)
   }
 
@@ -100,7 +100,7 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
     const email = (form.get('email') ?? '').trim().toLowerCase().slice(0, 254)
     const password = (form.get('password') ?? '').slice(0, 256)
     const expectedEmail = context.env.AUTH_EMAIL.trim().toLowerCase()
-    const passwordValid = await verifyPassword(password, context.env.AUTH_PASSWORD_HASH)
+    const passwordValid = await verifyPassword(password, context.env.AUTH_PASSWORD)
     if (email !== expectedEmail || !passwordValid) {
       await context.env.WEATHER_KV.put(key, String(attempts + 1), { expirationTtl: ATTEMPT_WINDOW_SECONDS })
       return loginPage(email, '邮箱或密码不正确。', 401)

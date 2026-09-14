@@ -24,14 +24,9 @@ describe('Pages authentication primitives', () => {
     expect(await verifySessionToken(token, '306221976@qq.com', 'test-session-secret', now + 31 * 24 * 60 * 60 * 1_000)).toBe(false)
   })
 
-  it('verifies the configured PBKDF2 password hash', async () => {
-    const salt = new TextEncoder().encode('0123456789abcdef')
-    const key = await crypto.subtle.importKey('raw', new TextEncoder().encode('correct-password'), 'PBKDF2', false, ['deriveBits'])
-    const hash = await crypto.subtle.deriveBits({ name: 'PBKDF2', hash: 'SHA-256', salt, iterations: 100_000 }, key, 256)
-    const encoded = (value: Uint8Array) => Buffer.from(value).toString('base64url')
-    const stored = `pbkdf2_sha256$100000$${encoded(salt)}$${encoded(new Uint8Array(hash))}`
-    expect(await verifyPassword('correct-password', stored)).toBe(true)
-    expect(await verifyPassword('wrong-password', stored)).toBe(false)
+  it('compares the configured password through fixed-size digests', async () => {
+    expect(await verifyPassword('correct-password', 'correct-password')).toBe(true)
+    expect(await verifyPassword('wrong-password', 'correct-password')).toBe(false)
   })
 
   it('sets a host-only secure cookie and rejects cross-origin form posts', () => {

@@ -1,11 +1,10 @@
-import { pbkdf2Sync, randomBytes } from 'node:crypto'
+import { randomBytes } from 'node:crypto'
 import { spawn } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 
 const PROJECT = 'henan-reservoir-observation-assistant'
 const EMAIL = '306221976@qq.com'
 const LOGIN_URL = `https://${PROJECT}.pages.dev/login`
-const ITERATIONS = 600_000
 const WRANGLER_BIN = fileURLToPath(new URL('../node_modules/wrangler/bin/wrangler.js', import.meta.url))
 
 function readHidden(prompt) {
@@ -132,14 +131,11 @@ const confirmation = await readHidden('请再次输入密码：')
 if (password !== confirmation) throw new Error('两次输入的密码不一致。')
 if (password.length < 12 || password.length > 256) throw new Error('密码长度必须为 12–256 位。')
 
-const salt = randomBytes(16)
-const hash = pbkdf2Sync(password, salt, ITERATIONS, 32, 'sha256')
-const passwordHash = `pbkdf2_sha256$${ITERATIONS}$${salt.toString('base64url')}$${hash.toString('base64url')}`
 const sessionSecret = randomBytes(32).toString('base64url')
 
 for (const environment of ['production', 'preview']) {
   process.stdout.write(`正在配置 ${environment} 环境…\n`)
-  await runWranglerSecret('AUTH_PASSWORD_HASH', passwordHash, environment)
+  await runWranglerSecret('AUTH_PASSWORD', password, environment)
   await runWranglerSecret('AUTH_SESSION_SECRET', sessionSecret, environment)
 }
 

@@ -77,18 +77,12 @@ export async function requestHasValidSession(request: Request, env: Env) {
   return verifySessionToken(token, env.AUTH_EMAIL, env.AUTH_SESSION_SECRET)
 }
 
-export async function verifyPassword(password: string, storedHash: string) {
+export async function verifyPassword(password: string, expectedPassword: string) {
   try {
-    const [scheme, iterationText, encodedSalt, encodedHash, extra] = storedHash.split('$')
-    const iterations = Number(iterationText)
-    if (scheme !== 'pbkdf2_sha256' || extra || !Number.isInteger(iterations) || iterations < 100_000 || iterations > 2_000_000) return false
-    const salt = decodeBase64Url(encodedSalt)
-    const expected = decodeBase64Url(encodedHash)
-    if (salt.byteLength < 16 || expected.byteLength !== 32) return false
-    const passwordKey = await crypto.subtle.importKey('raw', encoder.encode(password), 'PBKDF2', false, ['deriveBits'])
-    const actual = await crypto.subtle.deriveBits(
-      { name: 'PBKDF2', hash: 'SHA-256', salt, iterations }, passwordKey, 256,
-    )
+    const [actual, expected] = await Promise.all([
+      crypto.subtle.digest('SHA-256', encoder.encode(password)),
+      crypto.subtle.digest('SHA-256', encoder.encode(expectedPassword)),
+    ])
     const subtle = crypto.subtle as SubtleCrypto & {
       timingSafeEqual(a: ArrayBuffer | ArrayBufferView, b: ArrayBuffer | ArrayBufferView): boolean
     }
