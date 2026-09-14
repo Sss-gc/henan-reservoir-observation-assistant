@@ -34,13 +34,31 @@ function json(payload: unknown, status = 200) {
 }
 
 export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
-  const reservoirId = new URL(request.url).searchParams.get('id')?.trim() ?? ''
-  if (!RESERVOIR_ID.test(reservoirId)) return json({ error: 'id必须是有效的水库编号' }, 400)
-
+  const searchParams = new URL(request.url).searchParams
   const snapshot = await env.WEATHER_KV.get<WeatherSnapshot>(SNAPSHOT_KEY, 'json')
   if (!snapshot || snapshot.schemaVersion !== 'nmc-text-v1') {
     return json({ error: '天气缓存尚未初始化，请稍后再试' }, 503)
   }
+  if (searchParams.get('all') === '1') {
+    return json({
+      source: snapshot.source,
+      generatedAt: snapshot.generatedAt,
+      staleReservoirIds: snapshot.staleReservoirIds ?? [],
+      items: Object.fromEntries(Object.entries(snapshot.reservoirs).map(([id, item]) => [id, {
+        source: snapshot.source,
+        fetchedAt: item.fetchedAt ?? snapshot.generatedAt,
+        cacheStatus: snapshot.staleReservoirIds?.includes(id) ? 'kv-stale-fallback' : 'kv',
+        reservoirId: item.reservoirId,
+        stationName: item.stationName,
+        sourceUrl: item.sourceUrl,
+        publishedAt: item.publishedAt,
+        days: item.forecast,
+      }])),
+    })
+  }
+
+  const reservoirId = searchParams.get('id')?.trim() ?? ''
+  if (!RESERVOIR_ID.test(reservoirId)) return json({ error: 'id必须是有效的水库编号' }, 400)
   const item = snapshot.reservoirs[reservoirId]
   if (!item) return json({ error: '没有找到该水库的天气数据' }, 404)
 

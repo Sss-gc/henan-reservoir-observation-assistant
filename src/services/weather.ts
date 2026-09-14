@@ -1,5 +1,12 @@
 import type { WeatherResult } from '../types'
 
+const dailyWeatherCache = new Map<string, Promise<WeatherResult>>()
+let dailyAllWeatherCache: { day: string, request: Promise<Record<string, WeatherResult>> } | null = null
+
+function beijingDay() {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Shanghai' }).format(new Date())
+}
+
 export function weatherSymbol(condition: string) {
   if (condition.includes('雷')) return 'ϟ'
   if (condition.includes('雪') || condition.includes('冰雹')) return '❄'
@@ -26,14 +33,39 @@ function isWeatherResult(value: unknown): value is WeatherResult {
 }
 
 export async function fetchWeather(reservoirId: string): Promise<WeatherResult> {
-  const response = await fetch(`/api/weather?id=${encodeURIComponent(reservoirId)}`, {
-    headers: { Accept: 'application/json' },
-  })
-  const body = await response.json().catch(() => null)
-  if (!response.ok) {
-    const message = body && typeof body.error === 'string' ? body.error : `天气接口返回HTTP ${response.status}`
-    throw new Error(message)
-  }
-  if (!isWeatherResult(body)) throw new Error('天气缓存格式不完整')
-  return body
+  const key = `${beijingDay()}:${reservoirId}`
+  const cached = dailyWeatherCache.get(key)
+  if (cached) return cached
+  const request = (async () => {
+    const response = await fetch(`/api/weather?id=${encodeURIComponent(reservoirId)}`, {
+      headers: { Accept: 'application/json' },
+    })
+    const body = await response.json().catch(() => null)
+    if (!response.ok) {
+      const message = body && typeof body.error === 'string' ? body.error : `天气接口返回HTTP ${response.status}`
+      throw new Error(message)
+    }
+    if (!isWeatherResult(body)) throw new Error('天气缓存格式不完整')
+    return body
+  })()
+  dailyWeatherCache.set(key, request)
+  request.catch(() => dailyWeatherCache.delete(key))
+  return request
+}
+
+export async function fetchAllWeather(): Promise<Record<string, WeatherResult>> {
+  const day = beijingDay()
+  if (dailyAllWeatherCache?.day === day) return dailyAllWeatherCache.request
+  const request = (async () => {
+    const response = await fetch('/api/weather?all=1', { headers: { Accept: 'application/json' } })
+    const body = await response.json().catch(() => null) as { error?: string, items?: Record<string, unknown> } | null
+    if (!response.ok) throw new Error(body?.error ?? `天气接口返回HTTP ${response.status}`)
+    if (!body?.items || typeof body.items !== 'object') throw new Error('批量天气缓存格式不完整')
+    const items = Object.entries(body.items)
+    if (!items.length || items.some(([, value]) => !isWeatherResult(value))) throw new Error('批量天气缓存格式不完整')
+    return Object.fromEntries(items) as Record<string, WeatherResult>
+  })()
+  dailyAllWeatherCache = { day, request }
+  request.catch(() => { if (dailyAllWeatherCache?.request === request) dailyAllWeatherCache = null })
+  return request
 }

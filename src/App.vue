@@ -10,7 +10,7 @@ import {
 import type {
   OrbitPassPayload, ReservoirCollection, ReservoirFeature, WeatherResult,
 } from './types'
-import { fetchWeather, weatherSymbol } from './services/weather'
+import { fetchAllWeather, fetchWeather, weatherSymbol } from './services/weather'
 import { isSupportedObservationPass, normalizeObservationPass } from './services/satellite'
 import { buildExperimentRecommendation } from './services/recommendation'
 
@@ -31,6 +31,8 @@ const weatherStrip = ref<HTMLDivElement | null>(null)
 const satelliteFilterStrip = ref<HTMLDivElement | null>(null)
 const documentDownloading = ref(false)
 const documentError = ref('')
+const allReportDownloading = ref(false)
+const allReportError = ref('')
 const loggingOut = ref(false)
 let weatherRequest = 0
 let map: L.Map | null = null
@@ -138,6 +140,28 @@ async function downloadPlanDocument() {
     documentError.value = error instanceof Error ? error.message : '文档生成失败，请稍后重试'
   } finally {
     documentDownloading.value = false
+  }
+}
+
+async function downloadAllPlans() {
+  if (!orbitPayload.value || allReportDownloading.value) return
+  allReportDownloading.value = true
+  allReportError.value = ''
+  try {
+    const weatherByReservoir = await fetchAllWeather()
+    const failedReservoirIds = reservoirs.value.map((feature) => feature.properties.id)
+      .filter((id) => !weatherByReservoir[id])
+    const { downloadAllReservoirReport } = await import('./services/all-reservoir-report')
+    await downloadAllReservoirReport({
+      reservoirs: reservoirs.value.map((feature) => feature.properties),
+      orbitPayload: orbitPayload.value,
+      weatherByReservoir,
+      failedReservoirIds,
+    })
+  } catch (error) {
+    allReportError.value = error instanceof Error ? error.message : '全部水库简报生成失败，请稍后重试'
+  } finally {
+    allReportDownloading.value = false
   }
 }
 
@@ -302,6 +326,15 @@ onBeforeUnmount(() => {
         </section>
 
         <section class="notice"><CircleAlert :size="16" /><p>窗口表示轨道和幅宽可完整覆盖水库，不代表卫星运营方已确认成像。耀光按太阳—平静水面—卫星镜面反射几何估算，中高风险窗口已从“推荐”中排除；风浪与实际姿态仍会改变结果，出发前请再次核验。</p></section>
+
+        <section class="all-report-card">
+          <div><p class="eyebrow">ALL RESERVOIRS · 7 DAYS</p><h3>全部水库实验方案简报</h3><span>日期 · 过境卫星 · 天气状况</span></div>
+          <button class="all-report-download" :disabled="allReportDownloading" @click="downloadAllPlans">
+            <RefreshCw v-if="allReportDownloading" class="spin" :size="15" /><FileDown v-else :size="15" />
+            {{ allReportDownloading ? '正在汇总' : '一键下载' }}
+          </button>
+        </section>
+        <p v-if="allReportError" class="all-report-error"><CircleAlert :size="14" />{{ allReportError }}</p>
 
         <section class="panel-section recommendation-section">
           <div class="section-heading"><div><p class="eyebrow">BEST WINDOWS</p><h3>推荐实验日期</h3></div><div class="recommendation-actions"><span>{{ bestRecommendations.length }}个推荐</span><button class="document-download" :disabled="documentDownloading" @click="downloadPlanDocument"><RefreshCw v-if="documentDownloading" class="spin" :size="14" /><FileDown v-else :size="14" />{{ documentDownloading ? '正在生成' : '下载实验计划' }}</button></div></div>
