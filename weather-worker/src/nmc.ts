@@ -9,12 +9,14 @@ export interface ReservoirForecast {
   stationName: string
   sourceUrl: string
   publishedAt: string | null
+  fetchedAt: string
   forecast: ForecastDay[]
 }
 export interface WeatherSnapshot {
   schemaVersion: 'nmc-text-v1'
   source: '中央气象台'
   generatedAt: string
+  staleReservoirIds: string[]
   reservoirs: Record<string, ReservoirForecast>
 }
 
@@ -99,36 +101,83 @@ export function parseNmcForecast(html: string, now = new Date()): { forecast: Fo
   }
 }
 
-async function fetchStation(slug: string, stationName: string) {
+async function readLimitedHtml(response: Response) {
+  const reader = response.body?.getReader()
+  if (!reader) return ''
+  const chunks: Uint8Array[] = []
+  let totalBytes = 0
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) break
+    totalBytes += value.byteLength
+    if (totalBytes > MAX_HTML_BYTES) {
+      await reader.cancel()
+      throw new Error('中央气象台页面超过安全大小限制')
+    }
+    chunks.push(value)
+  }
+  const body = new Uint8Array(totalBytes)
+  let offset = 0
+  for (const chunk of chunks) {
+    body.set(chunk, offset)
+    offset += chunk.byteLength
+  }
+  return new TextDecoder().decode(body)
+}
+
+async function fetchStation(slug: string, stationName: string, fetcher: typeof fetch) {
   const sourceUrl = `https://www.nmc.cn/publish/forecast/AHA/${slug}.html`
-  const response = await fetch(sourceUrl, {
+  const response = await fetcher(sourceUrl, {
     headers: { Accept: 'text/html', 'User-Agent': USER_AGENT }, redirect: 'error',
+    signal: AbortSignal.timeout(20_000),
   })
   if (response.status === 403 || response.status === 429) throw new Error(`中央气象台拒绝请求：HTTP ${response.status}`)
   if (!response.ok) throw new Error(`中央气象台${stationName}页面返回HTTP ${response.status}`)
   const declaredLength = Number(response.headers.get('content-length') ?? 0)
   if (declaredLength > MAX_HTML_BYTES) throw new Error('中央气象台页面超过安全大小限制')
-  const html = await response.text()
-  if (new TextEncoder().encode(html).byteLength > MAX_HTML_BYTES) throw new Error('中央气象台页面超过安全大小限制')
+  const html = await readLimitedHtml(response)
   return { sourceUrl, ...parseNmcForecast(html) }
 }
 
-export async function buildWeatherSnapshot(wait: (milliseconds: number) => Promise<void>, now = new Date()) {
+export async function buildWeatherSnapshot(
+  wait: (milliseconds: number) => Promise<void>,
+  now = new Date(),
+  previous?: WeatherSnapshot | null,
+  fetcher: typeof fetch = fetch,
+) {
   const stationResults = new Map<string, Awaited<ReturnType<typeof fetchStation>>>()
   const uniqueStations = [...new Map(RESERVOIR_STATIONS.map((station) => [station.slug, station])).values()]
   for (const [index, station] of uniqueStations.entries()) {
-    stationResults.set(station.slug, await fetchStation(station.slug, station.stationName))
+    try {
+      stationResults.set(station.slug, await fetchStation(station.slug, station.stationName, fetcher))
+    } catch (error) {
+      console.error(JSON.stringify({
+        event: 'weather_station_refresh_failed', station: station.stationName, slug: station.slug,
+        error: error instanceof Error ? error.message : String(error),
+      }))
+    }
     if (index < uniqueStations.length - 1) await wait(3_000)
   }
+  const fetchedAt = now.toISOString()
+  const staleReservoirIds: string[] = []
   const reservoirs = Object.fromEntries(RESERVOIR_STATIONS.map((station) => {
     const result = stationResults.get(station.slug)
-    if (!result) throw new Error(`缺少${station.stationName}预报结果`)
+    if (!result) {
+      const fallback = previous?.reservoirs[station.reservoirId]
+      if (!fallback) throw new Error(`缺少${station.stationName}预报结果且没有可用历史缓存`)
+      staleReservoirIds.push(station.reservoirId)
+      return [station.reservoirId, {
+        ...fallback,
+        fetchedAt: fallback.fetchedAt ?? previous.generatedAt,
+      } satisfies ReservoirForecast]
+    }
     return [station.reservoirId, {
       reservoirId: station.reservoirId, stationName: station.stationName, sourceUrl: result.sourceUrl,
-      publishedAt: result.publishedAt, forecast: result.forecast,
+      publishedAt: result.publishedAt, fetchedAt, forecast: result.forecast,
     } satisfies ReservoirForecast]
   }))
   return {
-    schemaVersion: 'nmc-text-v1', source: '中央气象台', generatedAt: now.toISOString(), reservoirs,
+    schemaVersion: 'nmc-text-v1', source: '中央气象台', generatedAt: fetchedAt,
+    staleReservoirIds, reservoirs,
   } satisfies WeatherSnapshot
 }

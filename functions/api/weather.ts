@@ -17,6 +17,7 @@ interface StoredForecast {
   stationName: string
   sourceUrl: string
   publishedAt: string | null
+  fetchedAt?: string
   forecast: ForecastDay[]
 }
 
@@ -24,6 +25,7 @@ interface WeatherSnapshot {
   schemaVersion: string
   source: string
   generatedAt: string
+  staleReservoirIds?: string[]
   reservoirs: Record<string, StoredForecast>
 }
 
@@ -44,8 +46,8 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
 
   return json({
     source: snapshot.source,
-    fetchedAt: snapshot.generatedAt,
-    cacheStatus: 'kv',
+    fetchedAt: item.fetchedAt ?? snapshot.generatedAt,
+    cacheStatus: snapshot.staleReservoirIds?.includes(reservoirId) ? 'kv-stale-fallback' : 'kv',
     reservoirId: item.reservoirId,
     stationName: item.stationName,
     sourceUrl: item.sourceUrl,

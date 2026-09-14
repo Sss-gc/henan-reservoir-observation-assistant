@@ -8,7 +8,11 @@
     "crons": ["0 1 * * *"]
   },
   "kv_namespaces": [
-    { "binding": "WEATHER_KV" }
+    {
+      "binding": "WEATHER_KV",
+      "id": "f4853161fcb74d1d82d78fdac748cee7",
+      "remote": true
+    }
   ],
   "observability": {
     "enabled": true
