@@ -5,7 +5,7 @@ import type { GeoJsonObject } from 'geojson'
 import {
   CalendarCheck, ChevronLeft, ChevronRight, CircleAlert, CloudSun,
   DatabaseZap, FileDown, LocateFixed, MapPinned, Menu, RefreshCw, Search,
-  Satellite, X,
+  LogOut, Satellite, X,
 } from 'lucide-vue-next'
 import type {
   OrbitPassPayload, ReservoirCollection, ReservoirFeature, WeatherResult,
@@ -31,6 +31,7 @@ const weatherStrip = ref<HTMLDivElement | null>(null)
 const satelliteFilterStrip = ref<HTMLDivElement | null>(null)
 const documentDownloading = ref(false)
 const documentError = ref('')
+const loggingOut = ref(false)
 let weatherRequest = 0
 let map: L.Map | null = null
 let reservoirLayer: L.GeoJSON | null = null
@@ -107,6 +108,16 @@ function scrollFiltersWithWheel(event: WheelEvent) {
   if ((event.deltaY < 0 && atStart) || (event.deltaY > 0 && atEnd)) return
   event.preventDefault()
   strip.scrollBy({ left: event.deltaY, behavior: 'auto' })
+}
+
+async function logout() {
+  if (loggingOut.value) return
+  loggingOut.value = true
+  try {
+    await fetch('/logout', { method: 'POST', credentials: 'same-origin' })
+  } finally {
+    window.location.assign('/login')
+  }
 }
 
 async function downloadPlanDocument() {
@@ -256,6 +267,7 @@ onBeforeUnmount(() => {
         <span><CloudSun :size="14" />未来7天天气</span>
         <span><Satellite :size="14" />未来30天轨道</span>
         <span class="live-dot">私有访问版</span>
+        <button class="logout-button" :disabled="loggingOut" @click="logout"><LogOut :size="14" />{{ loggingOut ? '正在退出' : '退出登录' }}</button>
       </div>
     </header>
 

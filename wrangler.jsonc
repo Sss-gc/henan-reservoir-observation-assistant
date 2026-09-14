@@ -1,0 +1,20 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "henan-reservoir-observation-assistant",
+  "pages_build_output_dir": "./dist",
+  "compatibility_date": "2026-09-14",
+  "compatibility_flags": ["nodejs_compat"],
+  "vars": {
+    "AUTH_EMAIL": "306221976@qq.com",
+    "VITE_TIANDITU_KEY": "e1477269b1b2bd1b2b8f862f3f5fa970"
+  },
+  "kv_namespaces": [
+    {
+      "binding": "WEATHER_KV",
+      "id": "f4853161fcb74d1d82d78fdac748cee7"
+    }
+  ],
+  "observability": {
+    "enabled": true
+  }
+}

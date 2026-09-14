@@ -14,6 +14,8 @@
     "typecheck:functions": "tsc -p tsconfig.functions.json",
     "typecheck:weather-worker": "tsc -p weather-worker/tsconfig.json",
     "cf:types": "wrangler types --config weather-worker/wrangler.jsonc weather-worker/worker-configuration.d.ts",
+    "cf:types:pages": "wrangler types worker-configuration.d.ts",
+    "auth:configure": "node scripts/configure-pages-auth.mjs",
     "deploy:weather-worker": "wrangler deploy --config weather-worker/wrangler.jsonc",
     "test": "vitest run",
     "preview": "vite preview",
@@ -30,11 +32,12 @@
   "devDependencies": {
     "@types/geojson": "^7946.0.16",
     "@types/leaflet": "^1.9.15",
+    "@types/node": "25.9.5",
     "@vitejs/plugin-vue": "^5.2.1",
     "typescript": "~5.7.2",
     "vite": "^6.0.5",
     "vitest": "^4.1.11",
-    "wrangler": "4.131.1",
-    "vue-tsc": "^2.2.0"
+    "vue-tsc": "^2.2.0",
+    "wrangler": "4.131.1"
   }
 }
