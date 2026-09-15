@@ -128,7 +128,7 @@ async function readLimitedHtml(response: Response) {
 async function fetchStation(slug: string, stationName: string, fetcher: typeof fetch) {
   const sourceUrl = `https://www.nmc.cn/publish/forecast/AHA/${slug}.html`
   const response = await fetcher(sourceUrl, {
-    headers: { Accept: 'text/html', 'User-Agent': USER_AGENT }, redirect: 'error',
+    headers: { Accept: 'text/html', 'User-Agent': USER_AGENT }, redirect: 'manual',
     signal: AbortSignal.timeout(20_000),
   })
   if (response.status === 403 || response.status === 429) throw new Error(`中央气象台拒绝请求：HTTP ${response.status}`)

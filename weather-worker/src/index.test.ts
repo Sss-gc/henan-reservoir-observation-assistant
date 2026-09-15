@@ -47,9 +47,13 @@ describe('NMC text forecast parser', () => {
       block('09/17', '晴', '晴'), block('09/18', '多云', '阴'), block('09/19', '小雨', '小雨'),
       block('09/20', '晴', '多云'),
     ].join('')}</div>`
-    const fetcher = (async (input: RequestInfo | URL) => String(input).endsWith('/anyang.html')
-      ? new Response('upstream error', { status: 500 })
-      : new Response(html, { status: 200, headers: { 'Content-Type': 'text/html' } })) as typeof fetch
+    const redirects: Array<RequestRedirect | undefined> = []
+    const fetcher = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      redirects.push(init?.redirect)
+      return String(input).endsWith('/anyang.html')
+        ? new Response('upstream error', { status: 500 })
+        : new Response(html, { status: 200, headers: { 'Content-Type': 'text/html' } })
+    }) as typeof fetch
 
     const snapshot = await buildWeatherSnapshot(async () => {}, new Date('2026-09-14T01:00:00Z'), previous, fetcher)
     expect(Object.keys(snapshot.reservoirs)).toHaveLength(25)
@@ -60,5 +64,7 @@ describe('NMC text forecast parser', () => {
     expect(snapshot.reservoirs.HN_RSV_002.fetchedAt).toBe('2026-09-14T01:00:00.000Z')
     expect(snapshot.reservoirs.HN_RSV_021.sourceUrl).toBe('https://www.nmc.cn/publish/forecast/AHA/xinyang.html')
     expect(snapshot.reservoirs.HN_RSV_024.sourceUrl).toBe('https://www.nmc.cn/publish/forecast/AHA/zuochuan2.html')
+    expect(redirects).toHaveLength(22)
+    expect(new Set(redirects)).toEqual(new Set(['manual']))
   })
 })
