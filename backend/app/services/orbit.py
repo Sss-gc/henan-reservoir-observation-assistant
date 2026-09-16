@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import math
+import time
 import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any
@@ -90,11 +91,21 @@ def _latest_element(db: Session, satellite_id: str) -> OrbitalElement | None:
 
 
 def _download_omm(client: httpx.Client, satellite: Satellite) -> tuple[dict[str, Any], str]:
-    response = client.get(
-        CELESTRAK_GP_URL,
-        params={"CATNR": satellite.norad_cat_id, "FORMAT": "JSON"},
-    )
-    response.raise_for_status()
+    for attempt in range(3):
+        try:
+            response = client.get(
+                CELESTRAK_GP_URL,
+                params={"CATNR": satellite.norad_cat_id, "FORMAT": "JSON"},
+            )
+            response.raise_for_status()
+            break
+        except httpx.HTTPStatusError as exc:
+            if exc.response.status_code not in {429, 500, 502, 503, 504} or attempt == 2:
+                raise
+        except httpx.TransportError:
+            if attempt == 2:
+                raise
+        time.sleep(2 ** attempt)
     payload = response.json()
     if not payload or str(payload[0].get("NORAD_CAT_ID")) != str(satellite.norad_cat_id):
         raise ValueError(f"CelesTrak 未返回 NORAD {satellite.norad_cat_id} 的有效 OMM")
@@ -334,6 +345,8 @@ def refresh_orbits(days: int = 7, force: bool = False) -> dict[str, Any]:
                             errors.append(f"{satellite.name}: 下载失败，使用旧缓存（{exc}）")
                         else:
                             errors.append(f"{satellite.name}: {exc}")
+            if not elements:
+                raise RuntimeError("没有取得任何卫星轨道数据：" + "; ".join(errors))
             db.flush()
             db.execute(delete(SatellitePassRecord).where(SatellitePassRecord.center_time_utc >= started))
             passes = sum(
@@ -342,7 +355,8 @@ def refresh_orbits(days: int = 7, force: bool = False) -> dict[str, Any]:
             )
             result = {
                 "task_id": task_id, "status": "completed", "days": days,
-                "satellites": len(elements), "downloaded": downloads, "cached": cached,
+                "satellites": len(elements), "expected_satellites": len(satellites),
+                "downloaded": downloads, "cached": cached,
                 "passes": passes, "warnings": errors,
             }
             task.status = "completed"

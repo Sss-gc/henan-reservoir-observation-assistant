@@ -95,6 +95,8 @@ def build_static_payload(db: Session, days: int = 30) -> dict[str, Any]:
 def write_static_payload(output: Path = OUTPUT_PATH, days: int = 30) -> dict[str, Any]:
     with SessionLocal() as db:
         payload = build_static_payload(db, days)
+    if not payload["items"]:
+        raise RuntimeError("没有生成任何卫星观测窗口，保留上一份轨道数据")
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(json.dumps(payload, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
     return payload
@@ -111,6 +113,11 @@ def main() -> None:
     refresh_result = None
     if not args.skip_refresh:
         refresh_result = refresh_orbits(days=args.days, force=args.force)
+        if args.force and refresh_result["downloaded"] != refresh_result["expected_satellites"]:
+            raise RuntimeError(
+                "未取得全部卫星的最新轨道数据，保留上一份轨道数据："
+                + "; ".join(refresh_result["warnings"])
+            )
     payload = write_static_payload(args.output.resolve(), args.days)
     print(
         json.dumps(

@@ -27,7 +27,7 @@
 Cloudflare Worker Cron（每天北京时间 09:00）
   └─ 低频读取中央气象台县市级页面 → 提取7天昼夜文字天气 → 原子写入 Workers KV
 
-GitHub Actions（每天北京时间 02:15）
+GitHub Actions（每天北京时间 02:15；失败时 08:15 补刷）
   └─ CelesTrak OMM → SGP4/幅宽完整覆盖计算 → 更新 orbit-passes.json
 ```
 
@@ -69,8 +69,8 @@ pnpm build
 
 ## GitHub 自动更新
 
-- `.github/workflows/refresh-orbits.yml` 每天 UTC 18:15（北京时间次日 02:15）运行，也支持在 Actions 页面手动触发。
-- 工作流从 CelesTrak 获取最新 OMM，重算未来 30 天窗口，通过静态数据校验后提交 `public/data/orbit-passes.json`。
+- `.github/workflows/refresh-orbits.yml` 每天 UTC 18:15（北京时间次日 02:15）运行；UTC 00:15（北京时间 08:15）检查当天数据，尚未更新时再补刷，也支持在 Actions 页面手动触发。
+- CelesTrak 请求超时或暂时返回 429/5xx 时最多尝试 3 次。只有取得全部卫星的新轨道数据并通过静态校验后，才提交 `public/data/orbit-passes.json`；持续失败时保留上一份文件，等待下次定时刷新。
 - `.github/workflows/validate.yml` 在主分支推送和 Pull Request 时执行单元测试、类型检查、静态数据校验和生产构建。
 
 如仓库的 Actions 默认令牌没有写权限，需要在 GitHub 仓库 `Settings → Actions → General → Workflow permissions` 选择 `Read and write permissions`。工作流本身只申请 `contents: write`。
