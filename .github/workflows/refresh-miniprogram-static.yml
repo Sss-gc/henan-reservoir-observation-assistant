@@ -7,6 +7,8 @@ on:
 
 permissions:
   contents: read
+  pages: write
+  id-token: write
 
 concurrency:
   group: miniprogram-static-publish
@@ -16,6 +18,9 @@ jobs:
   publish:
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -33,7 +38,12 @@ jobs:
       - run: python -m pip install -r backend/requirements-orbit.txt
       - name: Independently generate weather, observations and all Word files
         run: pnpm mini-static:build
-      - name: Publish one complete independent static version
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.MINIPROGRAM_CLOUDFLARE_API_TOKEN }}
-        run: pnpm mini-static:deploy
+      - name: Configure free GitHub Pages hosting
+        uses: actions/configure-pages@v5
+      - name: Upload one complete independent static version
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: mini-static/dist
+      - name: Publish JSON and all Word files to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

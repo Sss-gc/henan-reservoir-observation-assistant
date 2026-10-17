@@ -15,6 +15,7 @@ const sourceOrbit = { ...JSON.parse(fs.readFileSync(path.join(root, 'public/data
 const config = JSON.parse(fs.readFileSync(path.join(mini, 'app.json'), 'utf8'))
 const firstDate = sourceOrbit.items.map((p) => p.date).sort()[0]
 const fixtureNow = Date.parse(`${firstDate}T12:00:00+08:00`)
+const fixtureBaseUrl = 'https://mini.example.test/reservoir-static'
 const originalNow = Date.now
 Date.now = () => fixtureNow
 let checks = 0, weatherFailure = false, orbitFailure = false, unauthorized = false, requestFailure = false
@@ -49,7 +50,8 @@ const wx = {
   },
   request(options) {
     calls.requests.push(options)
-    const route = new URL(options.url).pathname
+    assert.ok(options.url.startsWith(fixtureBaseUrl + '/'), 'JSON与Word请求必须保留服务地址中的项目目录')
+    const route = new URL(options.url).pathname.slice('/reservoir-static'.length)
     const success = (data, statusCode = 200) => options.success({ data, statusCode })
     if (requestFailure) return options.fail(typeof requestFailure === 'object' ? requestFailure : { errMsg: 'request:fail timeout' })
     if (unauthorized) return success({ ok: false }, 401)
@@ -71,7 +73,7 @@ const wx = {
   downloadFile(options) { calls.downloads.push(options); throw new Error('原生地图不应通过wx.downloadFile下载瓦片') },
 }
 const configPath = require.resolve('./config.js')
-require.cache[configPath] = { id: configPath, filename: configPath, loaded: true, exports: { serviceBaseUrl: 'https://mini.example.test' } }
+require.cache[configPath] = { id: configPath, filename: configPath, loaded: true, exports: { serviceBaseUrl: fixtureBaseUrl } }
 globalThis.wx = wx
 const data = require('./utils/data.js'), network = require('./utils/network.js')
 function filesIn(dir) { return fs.readdirSync(dir, { withFileTypes: true }).filter((e) => e.name !== 'node_modules').flatMap((e) => e.isDirectory() ? filesIn(path.join(dir, e.name)) : [path.join(dir, e.name)]) }
@@ -266,7 +268,7 @@ await check('原生地图标记切换、当前/全部视野和缩放工作，不
   assert.equal(map.data.map.markers.find((m) => m.callout).id, 1)
   const template = fs.readFileSync(path.join(mini, 'pages/dashboard/dashboard.wxml'), 'utf8')
   assert.match(template, /<map\s/); assert.doesNotMatch(template, /subkey|show-location|polyline=|polygons=/)
-  assert.equal(calls.downloads.length, 0); assert.ok(calls.requests.every((r) => r.url.startsWith('https://mini.example.test/')))
+  assert.equal(calls.downloads.length, 0); assert.ok(calls.requests.every((r) => r.url.startsWith(fixtureBaseUrl + '/')))
   map.onUnload()
 })
 await check('服务错误清除失效数据，不跳转登录，安装包无旧轨道', async () => {

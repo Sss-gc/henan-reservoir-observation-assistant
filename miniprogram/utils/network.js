@@ -1,6 +1,6 @@
 const { serviceBaseUrl } = require('../config')
 function request(path, options = {}) {
-  if (!/^https:\/\/[a-zA-Z0-9.-]+$/.test(serviceBaseUrl)) return Promise.reject(new Error('独立静态服务尚未部署'))
+  if (!/^https:\/\/[a-zA-Z0-9.-]+(?:\/[a-zA-Z0-9_-]+)*$/.test(serviceBaseUrl)) return Promise.reject(new Error('独立静态服务尚未部署'))
   return new Promise((resolve, reject) => wx.request({
     url: serviceBaseUrl + path, method: 'GET', timeout: 20000,
     responseType: options.binary ? 'arraybuffer' : 'text',

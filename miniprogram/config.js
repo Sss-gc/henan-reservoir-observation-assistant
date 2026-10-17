@@ -1,4 +1,4 @@
 module.exports = {
-  // Public address only; credentials stay on the server.
-  serviceBaseUrl: "https://reservoir-mini-private.s306221976.workers.dev",
+  // Public independent data and Word files; the repository path is required.
+  serviceBaseUrl: "https://sss-gc.github.io/henan-reservoir-observation-assistant",
 }

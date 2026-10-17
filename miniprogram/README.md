@@ -12,9 +12,11 @@
 
 ## 部署与手机验证
 
-静态服务地址 https://reservoir-mini-private.s306221976.workers.dev 沿用原地址，用户已确认将其保存为微信request合法域名。开发者工具若仍报url not in domain list，需要刷新“详情 → 域名信息”后编译，保留urlCheck=true。
+静态服务使用免费GitHub Pages，地址为 `https://sss-gc.github.io/henan-reservoir-observation-assistant`。在微信公众平台的request合法域名中添加 **`https://sss-gc.github.io`**（不带仓库路径），然后在开发者工具“⋯ → 设置 → 项目设置 → 项目配置 → 域名信息”刷新，重新编译并生成新的预览二维码。保留urlCheck=true。JSON和Word都通过wx.request获取，不需添加downloadFile域名。
 
-每日北京时间09:15独立更新。迁移流水线已通过完整生成与发布验证；免登录改动仍需新的手机验收和体验版更新。此前已验收的1.0.0体验版仍是旧CloudBase版；新版本上传为1.1.0并选为体验版后，“我的小程序”入口可继续使用。
+原workers.dev入口出现“电脑经代理200、绕过代理直连超时、手机预览timeout”的结果，因此不再作为小程序运行入口。GitHub Pages的本机直连检查不能替代手机验收；手机需检查天气、过境及当前/全部Word下载打开。
+
+每日北京时间09:15开始独立生成，完整批次通过GitHub Actions发布到GitHub Pages，不需要购买域名或新增部署密钥。GitHub Pages有缓存，更新可能延迟数分钟，以页面显示的实际生成时间为准。新入口仍需手机验收和体验版更新。此前已验收的1.0.0体验版仍是旧CloudBase版；新版本上传为1.1.0并选为体验版后，“我的小程序”入口可继续使用。
 
 ## 访问范围
 

@@ -31,7 +31,7 @@ GitHub Actions（每天北京时间 02:15；失败时 08:15 补刷）
   └─ CelesTrak OMM → SGP4/幅宽完整覆盖计算 → 更新 orbit-passes.json
 
 独立微信小程序（免登录访问）
-  └─ 独立静态Worker → 专属JSON和Word
+  └─ 免费GitHub Pages → 专属JSON和Word
        └─ GitHub Actions每日独立获取NMC/OMM、计算轨道并原子发布
 ```
 
