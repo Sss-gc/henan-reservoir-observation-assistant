@@ -1,7 +1,7 @@
 <view class="page" wx:if="{{selected}}">
   <view class="row hero">
     <view><view class="eyebrow">RESERVOIR FIELD LAB</view><view class="title">星地同步实验助手</view></view>
-    <view class="brand-mark">◈</view>
+    <view class="brand-mark"><view class="brand-icon"></view></view>
   </view>
   <view class="subtitle">让卫星过境与晴好天气在水库相遇</view>
   <view class="data-banner">{{loading ? '正在同步网站数据…' : '天气与过境同源：中央气象台 · 卫星轨道预测'}}</view>

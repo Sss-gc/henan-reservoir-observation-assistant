@@ -1,6 +1,11 @@
 .hero { align-items: flex-start; }
 .hero .title { margin-top: 10rpx; font-size: 39rpx; }
-.brand-mark { width: 80rpx; height: 80rpx; border-radius: 23rpx; background: #103d43; color: #5eead4; text-align: center; font-size: 56rpx; line-height: 80rpx; margin-left: 12rpx; }
+.brand-mark { display: flex; align-items: center; justify-content: center; flex: 0 0 80rpx; width: 80rpx; height: 80rpx; border-radius: 23rpx; background: #103d43; margin-left: 12rpx; }
+/*! Satellite icon from Lucide (also used by the website). ISC License.
+Copyright (c) for portions of Lucide are held by Cole Bemis 2013-2022 as part of Feather (MIT). All other copyright (c) for Lucide are held by Lucide Contributors 2022.
+Permission to use, copy, modify, and/or distribute this software for any purpose with or without fee is hereby granted, provided that the above copyright notice and this permission notice appear in all copies.
+THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE. */
+.brand-icon { width: 48rpx; height: 48rpx; background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%235eead4%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpath%20d%3D%22M13%207%209%203%205%207l4%204%22%2F%3E%3Cpath%20d%3D%22m17%2011%204%204-4%204-4-4%22%2F%3E%3Cpath%20d%3D%22m8%2012%204%204%206-6-4-4Z%22%2F%3E%3Cpath%20d%3D%22m16%208%203-3%22%2F%3E%3Cpath%20d%3D%22M9%2021a6%206%200%200%200-6-6%22%2F%3E%3C%2Fsvg%3E"); background-repeat: no-repeat; background-position: center; background-size: contain; }
 .search-box { padding: 13rpx 20rpx; border: 1rpx solid #234353; background: #0b2330; border-radius: 18rpx; }
 .search-icon { font-size: 40rpx; color: #6f99ac; margin-right: 14rpx; }
 .search-box input { flex: 1; min-width: 0; height: 60rpx; font-size: 26rpx; }
