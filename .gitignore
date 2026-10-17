@@ -11,5 +11,6 @@ backend/data/
 *.log
 .env
 .env.local
+miniprogram/project.private.config.json
 *.docx
 !src/assets/observation-plan-template.docx

@@ -20,7 +20,7 @@
 ## 部署架构
 
 ```text
-浏览器（Cloudflare Access 仅允许指定邮箱登录）
+浏览器 / 微信小程序（站内账号与签名会话）
   ├─ Cloudflare Pages：Vue 静态网页、25 座水库 GeoJSON、轨道 JSON
   └─ Pages Function /api/weather：按水库读取 Workers KV 缓存
 
@@ -90,13 +90,22 @@ pnpm build
 | Production variable | `VITE_TIANDITU_KEY`（天地图浏览器端 key） |
 | Pages KV binding | `WEATHER_KV`（与定时 Worker 共用） |
 
-生产页面需配置绑定站点域名的天地图浏览器端 key。地图仅调用天地图矢量与中文注记瓦片，不加载 OpenStreetMap 备用底图。Cloudflare Access 应同时保护生产域名和预览域名，仅允许 `306221976@qq.com`。部署后检查：
+生产页面需配置绑定站点域名的天地图浏览器端 key。地图仅调用天地图矢量与中文注记瓦片，不加载 OpenStreetMap 备用底图。站内登录中间件保护网站、预览部署与数据接口，仅允许配置的账号访问；小程序使用相同凭据和签名会话。部署后检查：
 
 - `/`：地图、天气、过境与联合推荐页面。
 - `/api/health`：应返回 `status: ok`。
 - `/api/weather?id=HN_RSV_001`：应返回对应参考站的 7 天昼夜文字天气。
 
 Cloudflare 的 Git 集成会在每次 `main` 分支更新后自动重新部署。GitHub Actions 每日提交新轨道 JSON 后，网站也会自动发布最新数据。
+
+## 微信小程序
+
+独立原生微信小程序工程见 [`miniprogram/README.md`](miniprogram/README.md)。使用网站账号登录，读取同一套中央气象台缓存和轨道文件，共用晴天与耀光算法；已移除示例天气和内置旧轨道。地图改为天地图矢量与中文注记，并保留水库原始边界。小程序地图代理需要单独配置加密变量 `TIANDITU_SERVER_KEY`（服务端类型，不能复用网站浏览器端key）。当前仍在开发联调，尚未完成真机域名配置、正式审核或发布。
+
+```powershell
+pnpm miniprogram:prepare
+pnpm miniprogram:check
+```
 
 ## 主要目录
 

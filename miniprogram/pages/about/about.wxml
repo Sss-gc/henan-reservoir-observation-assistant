@@ -1,0 +1,24 @@
+<view class="page">
+  <view class="eyebrow">OBSERVATION DATA</view><view class="title about-title">观测有据，出发有数</view>
+  <view class="subtitle">星地同步实验助手 · 与网站同源</view>
+  <view class="card">
+    <view class="section-title">数据来源</view>
+    <view class="info"><view class="info-label">水库</view><view>沿用网站25座水库边界及WGS84椭球参考面积，保留丹江口南侧汉江区域。</view></view>
+    <view class="info"><view class="info-label">天地图</view><view>与网站使用相同的矢量底图和中文注记。按Web墨卡托投影绘制原始水库边界，不使用腾讯地图或GCJ-02坐标偏移。</view></view>
+    <view class="info"><view class="info-label">中央气象台</view><view>读取网站同一份7日昼夜文字预报缓存，后台设置为每天北京时间09:00刷新。单站失败时沿用上次有效缓存，并显示实际更新时间。</view><view class="muted small">天气批次：{{meta.weatherGeneratedAt || '尚未获取'}}</view></view>
+    <view class="info"><view class="info-label">卫星过境</view><view>读取网站当前部署的同一份轨道文件，保留原始时刻与耀光计算值。不会把旧日期平移到今天，也不会用内置旧轨道替代接口失败。</view><view class="muted small">生成时间：{{meta.orbitGeneratedAt || '尚未获取'}}</view><view class="muted small">覆盖日期：{{meta.orbitStartDate || '尚未获取'}} — {{meta.orbitEndDate || '尚未获取'}}</view></view>
+  </view>
+  <view class="card">
+    <view class="section-title">怎样理解推荐</view>
+    <view class="info">与网站共用推荐算法。按过境日期匹配天气，白天严格为“晴”时生成晴天窗口；预报范围以外标记“待预报”。没有天气数据时不生成晴天推荐。</view>
+    <view class="info">耀光风险与夹角单独显示。过境表示几何完整覆盖，不代表已安排成像。HJ-2B为四台CCD相机拼接，不能解释为单相机覆盖。</view>
+    <view class="info">网站数据过旧或接口不可用时明确显示状态。外业前请再次核验天气、轨道生成时间和卫星实际成像计划。</view>
+  </view>
+  <view class="card">
+    <view class="section-title">访问与隐私</view>
+    <view class="info">使用原网站邮箱和密码登录，仅将签名会话与选中的水库保存在本机。密码不会保存。不申请你的位置、手机号或通讯录权限。</view>
+    <view class="info muted small website">{{website}}</view>
+    <button class="secondary" bindtap="copyWebsite">复制网站地址</button>
+    <button class="secondary logout-button" bindtap="logout">退出登录</button>
+  </view>
+</view>

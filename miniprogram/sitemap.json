@@ -1,0 +1,4 @@
+{
+  "desc": "本地预览版本，不开放微信搜索收录。",
+  "rules": [{ "action": "disallow", "page": "*" }]
+}

@@ -3,4 +3,5 @@
 interface Env {
   AUTH_PASSWORD: string
   AUTH_SESSION_SECRET: string
+  TIANDITU_SERVER_KEY?: string
 }

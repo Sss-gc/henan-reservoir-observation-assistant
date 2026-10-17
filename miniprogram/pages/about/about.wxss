@@ -1,0 +1,5 @@
+.about-title { margin-top: 14rpx; font-size: 42rpx; }
+.info { margin-top: 24rpx; font-size: 25rpx; line-height: 1.85; color: #b8d0dc; }
+.info-label { color: #5eead4; font-size: 26rpx; font-weight: 600; margin-bottom: 4rpx; }
+.website { word-break: break-all; margin-bottom: 24rpx; }
+.logout-button { margin-top: 20rpx; }

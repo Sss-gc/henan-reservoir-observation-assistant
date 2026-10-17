@@ -1,0 +1,30 @@
+{
+  "pages": [
+    "pages/dashboard/dashboard",
+    "pages/plan/plan",
+    "pages/about/about",
+    "pages/pass/pass",
+    "pages/login/login"
+  ],
+  "window": {
+    "navigationBarTitleText": "星地同步实验助手",
+    "navigationBarBackgroundColor": "#081b26",
+    "navigationBarTextStyle": "white",
+    "backgroundColor": "#06141d",
+    "backgroundTextStyle": "light"
+  },
+  "tabBar": {
+    "color": "#88a6b5",
+    "selectedColor": "#2dd4bf",
+    "backgroundColor": "#081b26",
+    "borderStyle": "black",
+    "list": [
+      { "pagePath": "pages/dashboard/dashboard", "text": "水库观测" },
+      { "pagePath": "pages/plan/plan", "text": "实验方案" },
+      { "pagePath": "pages/about/about", "text": "数据说明" }
+    ]
+  },
+  "networkTimeout": { "request": 15000 },
+  "style": "v2",
+  "sitemapLocation": "sitemap.json"
+}

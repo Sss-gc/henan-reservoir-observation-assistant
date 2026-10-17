@@ -1,0 +1,5 @@
+{
+  "navigationBarTitleText": "水库观测",
+  "enablePullDownRefresh": true,
+  "usingComponents": { "tianditu-map": "/components/tianditu-map/tianditu-map" }
+}

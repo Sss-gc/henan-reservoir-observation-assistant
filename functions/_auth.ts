@@ -72,9 +72,28 @@ export async function verifySessionToken(token: string, expectedEmail: string, s
 }
 
 export async function requestHasValidSession(request: Request, env: Env) {
-  const token = readCookie(request, SESSION_COOKIE)
+  const authorization = request.headers.get('Authorization')
+  const token = authorization?.startsWith('Bearer ') ? authorization.slice(7) : readCookie(request, SESSION_COOKIE)
   if (!token || !env.AUTH_SESSION_SECRET || !env.AUTH_EMAIL) return false
   return verifySessionToken(token, env.AUTH_EMAIL, env.AUTH_SESSION_SECRET)
+}
+
+export async function authenticateCredentials(request: Request, env: Env, email: string, password: string) {
+  if (!env.AUTH_PASSWORD || !env.AUTH_SESSION_SECRET || !env.AUTH_EMAIL) {
+    return { status: 503, message: '登录服务尚未完成配置，请稍后重试。' } as const
+  }
+  const key = await rateLimitKey(request, env.AUTH_SESSION_SECRET)
+  const attempts = Number(await env.WEATHER_KV.get(key) ?? 0)
+  if (attempts >= 5) return { status: 429, message: '尝试次数过多，请在15分钟后重试。' } as const
+  const expectedEmail = env.AUTH_EMAIL.trim().toLowerCase()
+  const valid = await verifyPassword(password, env.AUTH_PASSWORD)
+  if (email.trim().toLowerCase() !== expectedEmail || !valid) {
+    await env.WEATHER_KV.put(key, String(attempts + 1), { expirationTtl: 900 })
+    return { status: 401, message: '邮箱或密码不正确。' } as const
+  }
+  await env.WEATHER_KV.delete(key)
+  return { status: 200, token: await createSessionToken(expectedEmail, env.AUTH_SESSION_SECRET),
+    expiresAt: Date.now() + SESSION_TTL_SECONDS * 1000 } as const
 }
 
 export async function verifyPassword(password: string, expectedPassword: string) {

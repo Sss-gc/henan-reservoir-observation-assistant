@@ -1,0 +1,12 @@
+<view class="page login-page">
+  <view class="eyebrow">RESERVOIR FIELD LAB</view><view class="title">星地同步实验助手</view>
+  <view class="subtitle">使用原网站的邮箱和密码登录</view>
+  <view class="card">
+    <view class="section-title">私人访问</view>
+    <view class="field-label">邮箱</view><input class="login-input" type="text" value="{{email}}" bindinput="setEmail" placeholder="网站登录邮箱" />
+    <view class="field-label">密码</view><input class="login-input" password="{{true}}" value="{{password}}" bindinput="setPassword" placeholder="网站登录密码" confirm-type="go" bindconfirm="submit" />
+    <view wx:if="{{error}}" class="login-error">{{error}}</view>
+    <button class="primary" loading="{{loading}}" disabled="{{loading}}" bindtap="submit">登录并同步网站数据</button>
+    <view class="footnote">天气来自中央气象台缓存，过境读取网站同一份轨道文件。密码不在本机保存。</view>
+  </view>
+</view>

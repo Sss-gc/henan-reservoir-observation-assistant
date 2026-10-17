@@ -19,6 +19,8 @@
     "deploy:weather-worker": "wrangler deploy --config weather-worker/wrangler.jsonc",
     "test": "vitest run",
     "preview": "vite preview",
+    "miniprogram:prepare": "node scripts/prepare-miniprogram.mjs",
+    "miniprogram:check": "node scripts/check-miniprogram.mjs",
     "prepare:data": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/prepare-data.ps1"
   },
   "dependencies": {
