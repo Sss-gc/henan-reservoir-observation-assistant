@@ -25,10 +25,12 @@
 
   <view class="card reservoir-card">
     <view class="row"><view><view class="section-note">当前水库 · {{selected.city}}</view><view class="reservoir-name">{{selected.name_cn}}</view></view><view class="area"><text>{{selected.area_km2}}</text><view>参考面积 km²</view></view></view>
-    <reservoir-map wx:if="{{!pickerOpen}}" id="reservoir-map" class="reservoir-map" style="display:block;width:100%;height:410rpx;" map-data="{{map}}" bind:select="selectMarker"></reservoir-map>
+    <view hidden="{{pickerOpen}}" class="reservoir-map" style="width:100%;height:410rpx;">
+      <map id="reservoir-map" class="native-map" style="display:block;width:100%;height:410rpx;" longitude="{{map.longitude}}" latitude="{{map.latitude}}" scale="{{map.scale}}" min-scale="4" max-scale="18" markers="{{map.markers}}" polyline="{{map.polyline}}" enable-zoom="{{true}}" enable-scroll="{{true}}" show-compass="{{true}}" show-scale="{{true}}" bindmarkertap="selectMarker" bindcallouttap="selectMarker" />
+    </view>
     <view class="map-footer">
       <text class="map-caption muted small">腾讯地图 · 水面边界轮廓</text>
-      <view class="map-actions"><button class="text-button" size="mini" bindtap="overviewMap">全部水库</button><button class="text-button" size="mini" bindtap="fitMap">定位当前</button></view>
+      <view class="map-actions"><button class="text-button map-zoom-button" size="mini" bindtap="zoomMapIn">＋</button><button class="text-button map-zoom-button" size="mini" bindtap="zoomMapOut">−</button><button class="text-button" size="mini" bindtap="overviewMap">全部水库</button><button class="text-button" size="mini" bindtap="fitMap">定位当前</button></view>
     </view>
   </view>
 

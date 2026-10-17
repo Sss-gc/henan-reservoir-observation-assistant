@@ -12,6 +12,11 @@ Page({
   onLoad(options) {
     if (options && data.getReservoir(options.reservoir)) getApp().selectReservoir(options.reservoir)
   },
+  onReady() {
+    this._mapContext = wx.createMapContext('reservoir-map')
+    this._mapReady = true; this.fitMap()
+  },
+  onUnload() { this._mapReady = false },
   onShow() {
     if (!network.requireLogin()) return
     const id = getApp().globalData.selectedReservoirId
@@ -33,13 +38,15 @@ Page({
   loadReservoir(id, resetFilters = true) {
     const selected = data.getReservoirList().find((item) => item.id === id) || data.getReservoirList()[0]
     getApp().selectReservoir(selected.id)
+    const map = data.buildNativeMapData(data.getMapData(selected.id))
+    this._markerIds = map.markerIds; this._currentBounds = map.currentBounds; this._allBounds = map.allBounds
     this.setData({
       selected, weather: data.getWeather(selected.id), weatherDays: data.getWeatherCards(selected.id), satellites: data.getSatelliteOptions(selected.id),
       satellite: resetFilters || !data.getSatelliteOptions(selected.id).includes(this.data.satellite) ? '全部卫星' : this.data.satellite,
       passFilter: resetFilters ? '全部' : this.data.passFilter, visibleCount: resetFilters ? 10 : this.data.visibleCount,
       keyword: '', pickerOpen: false,
-      map: data.getMapData(selected.id),
-    })
+      map: map.view,
+    }, () => this.fitMap())
     this.updatePasses()
   },
   updatePasses() {
@@ -62,7 +69,7 @@ Page({
   closePicker() { this.setData({ pickerOpen: false, keyword: '' }) },
   selectReservoir(event) { this.loadReservoir(event.currentTarget.dataset.id) },
   selectMarker(event) {
-    const id = event.detail.reservoirId
+    const id = this._markerIds[event.detail.markerId]
     if (id) this.loadReservoir(id)
   },
   selectSatellite(event) {
@@ -77,12 +84,17 @@ Page({
   openPass(event) { wx.navigateTo({ url: `/pages/pass/pass?id=${encodeURIComponent(event.currentTarget.dataset.id)}` }) },
   openPlan() { wx.switchTab({ url: '/pages/plan/plan' }) },
   fitMap() {
-    const map = this.selectComponent('#reservoir-map')
-    if (map) map.fitCurrent()
+    if (this._mapReady && this._currentBounds?.length) this._mapContext.includePoints({ points: this._currentBounds, padding: [24, 24, 24, 24] })
   },
   overviewMap() {
-    const map = this.selectComponent('#reservoir-map')
-    if (map) map.overview()
+    if (this._mapReady && this._allBounds?.length) this._mapContext.includePoints({ points: this._allBounds, padding: [24, 24, 24, 24] })
+  },
+  zoomMapIn() { this.changeMapZoom(1) },
+  zoomMapOut() { this.changeMapZoom(-1) },
+  changeMapZoom(delta) {
+    if (this._mapReady) this._mapContext.getScale({ success: ({ scale }) => {
+      if (this._mapReady) this.setData({ 'map.scale': Math.max(4, Math.min(18, scale + delta)) })
+    } })
   },
   onPullDownRefresh() {
     return this.syncData(true)

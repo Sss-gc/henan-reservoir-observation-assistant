@@ -1,5 +1,4 @@
 {
   "navigationBarTitleText": "水库观测",
-  "enablePullDownRefresh": true,
-  "usingComponents": { "reservoir-map": "/components/reservoir-map/reservoir-map" }
+  "enablePullDownRefresh": true
 }

@@ -69,27 +69,36 @@ app = definition('app.js', 'App')
 function page(relative) {
   const value = definition(`${relative}.js`, 'Page')
   const result = { ...value, data: JSON.parse(JSON.stringify(value.data)) }
-  result.setData = function (values, callback) { Object.assign(this.data, values); if (callback) callback() }
-  result.selectComponent = () => ({ fitCurrent: () => calls.map.push('fit'), overview: () => calls.map.push('overview') })
+  result.setData = function (values, callback) {
+    for (const [key, value] of Object.entries(values)) {
+      const names = key.split('.'); let target = this.data
+      for (const name of names.slice(0, -1)) target = target[name]
+      target[names.at(-1)] = value
+    }
+    if (callback) callback()
+  }
   return result
 }
 const event = (dataset) => ({ currentTarget: { dataset } })
 
-await check('5个页面和原生地图组件配置、WXML及事件绑定完整', () => {
+await check('5个页面配置、首页直接渲染原生地图、WXML及事件绑定完整', () => {
   assert.equal(config.pages.length, 5)
   const project = JSON.parse(fs.readFileSync(path.join(mini, 'project.config.json'), 'utf8'))
   assert.match(project.appid, /^wx[a-f0-9]{16}$/); assert.equal(project.setting.urlCheck, true)
   for (const tab of config.tabBar.list) assert.ok(config.pages.includes(tab.pagePath))
-  for (const relative of [...config.pages, 'components/reservoir-map/reservoir-map']) {
-    const component = relative.startsWith('components/')
+  for (const relative of config.pages) {
     for (const ext of ['.js', '.json', '.wxml', '.wxss']) assert.ok(fs.existsSync(path.join(mini, relative + ext)))
     JSON.parse(fs.readFileSync(path.join(mini, relative + '.json'), 'utf8'))
-    const value = definition(relative + '.js', component ? 'Component' : 'Page')
+    const value = definition(relative + '.js', 'Page')
     const template = fs.readFileSync(path.join(mini, relative + '.wxml'), 'utf8')
     const parser = new DOMParser({ onError: (level, message) => { throw new Error(`${relative}: ${level}: ${message}`) } })
     const doc = parser.parseFromString(`<root xmlns:wx="https://weixin.qq.com/wxml" xmlns:bind="https://weixin.qq.com/bind">${template}</root>`, 'application/xml')
     for (const element of Array.from(doc.getElementsByTagName('*'))) for (const attr of Array.from(element.attributes)) {
-      if (/^(bind|catch)/.test(attr.name)) assert.equal(typeof (component ? value.methods : value)[attr.value], 'function', `${relative}: ${attr.value}`)
+      if (/^(bind|catch)/.test(attr.name)) assert.equal(typeof value[attr.value], 'function', `${relative}: ${attr.value}`)
+    }
+    if (relative === 'pages/dashboard/dashboard') {
+      assert.equal(doc.getElementsByTagName('map').length, 1)
+      assert.equal(doc.getElementsByTagName('reservoir-map').length, 0)
     }
   }
 })
@@ -150,15 +159,15 @@ await check('真实数据响应与网站推荐一致，无天气不生成晴天�
 })
 await check('首页搜索切换、筛选分页、详情与方案复制使用同一份数据', async () => {
   app.onLaunch(); const home = page('pages/dashboard/dashboard')
-  home.onLoad({}); await home.onShow(); assert.equal(home.data.passes.length, 10)
+  home.onLoad({}); await home.onShow(); home.onReady(); assert.equal(home.data.passes.length, 10)
   home.loadMore(); assert.equal(home.data.passes.length, 20)
   home.onSearch({ detail: { value: '丹江' } }); assert.equal(home.data.filteredReservoirs.length, 1)
   home.selectReservoir(event({ id: 'HN_RSV_024' })); home.selectSatellite(event({ name: 'Sentinel-2C' }))
   assert.ok(home.data.passes.every((p) => p.satellite === 'Sentinel-2C'))
   home.selectPassFilter(event({ name: '待预报' })); const id = home.data.passes[0].id
   home.openPass(event({ id })); assert.equal(new URL(calls.navigation.at(-1), 'https://test').searchParams.get('id'), id)
-  home.overviewMap(); assert.equal(calls.map.at(-1), 'overview')
-  home.selectMarker({ detail: { reservoirId: 'HN_RSV_001' } }); assert.equal(home.data.selected.id, 'HN_RSV_001')
+  home.overviewMap(); assert.deepEqual(calls.map.at(-1).points, home._allBounds)
+  home.selectMarker({ detail: { markerId: 1 } }); assert.equal(home.data.selected.id, 'HN_RSV_001')
   await home.onPullDownRefresh()
   const detail = page('pages/pass/pass'); await detail.onLoad({ id }); assert.equal(detail.data.pass.id, id)
   detail.copyWindow(); assert.match(calls.clipboard.at(-1), /中央气象台/); assert.doesNotMatch(calls.clipboard.at(-1), /示例|预览/)
@@ -170,61 +179,45 @@ await check('首页搜索切换、筛选分页、详情与方案复制使用同�
   await detail.onLoad({ id: 'not-found' }); assert.equal(detail.data.notFound, true)
 })
 await check('腾讯地图显示坐标转换正确，原始边界及面积保持不变', () => {
-  // Reproduce the missing-module environment: the map must register without loading another JS module.
-  const value = definition('components/reservoir-map/reservoir-map.js', 'Component', () => { throw new Error('module is not defined') })
-  const fixture = { ...value.methods, data: {},
-    properties: { mapData: { selectedId: 'point', rings: [], markers: [{ id: 'point', name: 'test', longitude: 116.397128, latitude: 39.916527 }] } },
-    setData(values, callback) { Object.assign(this.data, values); if (callback) callback() },
-  }
-  value.lifetimes.ready.call(fixture)
-  const beijing = fixture.data.markers[0]
+  const fixture = { selectedId: 'point', rings: [], markers: [{ id: 'point', name: 'test', longitude: 116.397128, latitude: 39.916527 }] }
+  const beijing = data.buildNativeMapData(fixture).view.markers[0]
   assert.ok(Math.abs(beijing.longitude - 116.40337249402477) < 1e-8)
   assert.ok(Math.abs(beijing.latitude - 39.91793074924595) < 1e-8)
-  fixture.properties.mapData.markers[0] = { id: 'point', name: 'test', longitude: -74, latitude: 40 }
-  fixture.updateMap()
-  assert.equal(fixture.data.markers[0].longitude, -74); assert.equal(fixture.data.markers[0].latitude, 40)
-  value.lifetimes.detached.call(fixture)
+  fixture.markers[0] = { id: 'point', name: 'test', longitude: -74, latitude: 40 }
+  const outside = data.buildNativeMapData(fixture).view.markers[0]
+  assert.equal(outside.longitude, -74); assert.equal(outside.latitude, 40)
   for (const reservoir of data.getReservoirList()) {
     const source = data.getMapData(reservoir.id), before = JSON.stringify(source)
-    const map = { ...value.methods, properties: { mapData: source }, data: {},
-      setData(values, callback) { Object.assign(this.data, values); if (callback) callback() },
-    }
-    value.lifetimes.ready.call(map)
+    const map = data.buildNativeMapData(source)
     assert.equal(JSON.stringify(source), before); assert.equal(data.getReservoir(reservoir.id).area_km2, reservoir.area_km2)
-    assert.equal(map.data.polyline.length, source.rings.length)
-    map.data.polyline.forEach((line, i) => assert.equal(line.points.length, source.rings[i].length))
-    const [sw, ne] = map._currentBounds
-    for (const line of map.data.polyline) for (const p of line.points) {
+    assert.equal(map.view.polyline.length, source.rings.length)
+    map.view.polyline.forEach((line, i) => assert.equal(line.points.length, source.rings[i].length))
+    const [sw, ne] = map.currentBounds
+    for (const line of map.view.polyline) for (const p of line.points) {
       assert.ok(p.longitude >= sw.longitude && p.longitude <= ne.longitude && p.latitude >= sw.latitude && p.latitude <= ne.latitude)
     }
-    assert.ok(Buffer.byteLength(JSON.stringify(map.data)) < 1024 * 1024, '原生地图setData应低于1MiB')
-    value.lifetimes.detached.call(map)
+    assert.ok(Buffer.byteLength(JSON.stringify(map.view)) < 1024 * 1024, '原生地图setData应低于1MiB')
   }
 })
 await check('原生地图标记切换、当前/全部视野和缩放工作，不调用瓦片代理或使用Key', () => {
-  const value = definition('components/reservoir-map/reservoir-map.js', 'Component'), events = []
-  const map = { ...value.methods, properties: { mapData: data.getMapData('HN_RSV_024') }, data: {},
-    setData(values, callback) { Object.assign(this.data, values); if (callback) callback() },
-    triggerEvent(name, detail) { events.push({ name, detail }) },
-  }
-  value.lifetimes.ready.call(map)
-  assert.equal(calls.map.at(-2).id, 'native-map'); assert.equal(calls.map.at(-2).component, map)
+  const map = page('pages/dashboard/dashboard')
+  map.loadReservoir('HN_RSV_024'); map.onReady()
+  assert.equal(calls.map.at(-2).id, 'reservoir-map'); assert.equal(calls.map.at(-2).component, undefined)
   assert.deepEqual(calls.map.at(-1).points, map._currentBounds)
   assert.ok(map._currentBounds[0].latitude < 32.39, '丹江口南侧汉江区域应保留')
-  assert.equal(map.data.markers.length, 25); assert.equal(new Set(map.data.markers.map((m) => m.id)).size, 25)
-  assert.equal(map.data.markers.filter((m) => m.callout).length, 1)
-  map.onMarkerTap({ detail: { markerId: 1 } }); assert.equal(events[0].name, 'select'); assert.equal(events[0].detail.reservoirId, 'HN_RSV_001')
-  map.onMarkerTap({ detail: { markerId: 999 } }); assert.equal(events.length, 1)
-  map.overview(); assert.deepEqual(calls.map.at(-1).points, map._allBounds)
+  assert.equal(map.data.map.markers.length, 25); assert.equal(new Set(map.data.map.markers.map((m) => m.id)).size, 25)
+  assert.equal(map.data.map.markers.filter((m) => m.callout).length, 1)
+  map.overviewMap(); assert.deepEqual(calls.map.at(-1).points, map._allBounds)
   const [sw, ne] = map._allBounds
-  assert.ok(map.data.markers.every((m) => m.longitude >= sw.longitude && m.longitude <= ne.longitude && m.latitude >= sw.latitude && m.latitude <= ne.latitude))
-  map.zoomIn(); assert.equal(map.data.scale, 13); map.zoomOut(); assert.equal(map.data.scale, 11)
-  map.properties.mapData = data.getMapData('HN_RSV_001'); map.updateMap()
-  assert.equal(map.data.markers.find((m) => m.callout).id, 1)
-  const template = fs.readFileSync(path.join(mini, 'components/reservoir-map/reservoir-map.wxml'), 'utf8')
+  assert.ok(map.data.map.markers.every((m) => m.longitude >= sw.longitude && m.longitude <= ne.longitude && m.latitude >= sw.latitude && m.latitude <= ne.latitude))
+  map.zoomMapIn(); assert.equal(map.data.map.scale, 13); map.zoomMapOut(); assert.equal(map.data.map.scale, 11)
+  map.selectMarker({ detail: { markerId: 1 } }); assert.equal(map.data.selected.id, 'HN_RSV_001')
+  map.selectMarker({ detail: { markerId: 999 } }); assert.equal(map.data.selected.id, 'HN_RSV_001')
+  assert.equal(map.data.map.markers.find((m) => m.callout).id, 1)
+  const template = fs.readFileSync(path.join(mini, 'pages/dashboard/dashboard.wxml'), 'utf8')
   assert.match(template, /<map\s/); assert.doesNotMatch(template, /subkey|show-location/)
   assert.equal(calls.downloads.length, 0); assert.ok(calls.requests.every((r) => !r.url.includes('/api/map-tile')))
-  value.lifetimes.detached.call(map)
+  map.onUnload()
 })
 await check('会话失效清除数据，安装包不再包含示例天气和旧轨道', async () => {
   unauthorized = true

@@ -14,12 +14,14 @@
 .reservoir-name { font-size: 42rpx; font-weight: 650; }
 .area { text-align: right; color: #88a6b5; font-size: 20rpx; }
 .area > text { color: #d8eef4; font-size: 35rpx; font-weight: 600; }
-.reservoir-map { display: block; width: 100%; height: 410rpx; margin-top: 22rpx; border-radius: 18rpx; }
+.reservoir-map { display: block; position: relative; width: 100%; height: 410rpx; margin-top: 22rpx; border-radius: 18rpx; overflow: hidden; background: #dce7e9; }
+.native-map { display: block; width: 100%; height: 410rpx; }
 .data-banner { margin: 28rpx 0; padding: 20rpx 24rpx; border: 1rpx solid #24615e; border-radius: 16rpx; background: #0d3039; color: #99e8dc; font-size: 23rpx; }
 .map-footer { padding-top: 14rpx; }
 .map-caption { display: block; }
 .map-actions { display: flex; align-items: center; justify-content: flex-end; padding: 4rpx 0; }
 .map-actions .text-button + .text-button { margin-left: 24rpx; }
+.map-actions .map-zoom-button { width: 40rpx; padding: 10rpx 0; font-size: 32rpx; }
 .weather-strip { white-space: nowrap; margin-top: 24rpx; width: 100%; }
 .weather-day { display: inline-block; width: 138rpx; padding: 20rpx 10rpx; margin-right: 12rpx; border-radius: 16rpx; background: #102c3a; text-align: center; border: 1rpx solid #234353; }
 .weather-day.sunny-day { border-color: #54603b; background: #263025; }
