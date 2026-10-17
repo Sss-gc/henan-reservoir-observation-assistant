@@ -30,8 +30,8 @@ Cloudflare Worker Cron（每天北京时间 09:00）
 GitHub Actions（每天北京时间 02:15；失败时 08:15 补刷）
   └─ CelesTrak OMM → SGP4/幅宽完整覆盖计算 → 更新 orbit-passes.json
 
-独立微信小程序（私人访问口令与到期会话）
-  └─ 独立认证Worker → 专属静态JSON和Word
+独立微信小程序（免登录访问）
+  └─ 独立静态Worker → 专属JSON和Word
        └─ GitHub Actions每日独立获取NMC/OMM、计算轨道并原子发布
 ```
 
@@ -94,7 +94,7 @@ pnpm build
 | Production variable | `VITE_TIANDITU_KEY`（天地图浏览器端 key） |
 | Pages KV binding | `WEATHER_KV`（与定时 Worker 共用） |
 
-生产页面需配置绑定站点域名的天地图浏览器端 key。地图仅调用天地图矢量与中文注记瓦片，不加载 OpenStreetMap 备用底图。站内登录中间件保护网站、预览部署与数据接口，仅允许配置的账号访问。独立小程序使用自身的微信身份访问控制。部署后检查：
+生产页面需配置绑定站点域名的天地图浏览器端 key。地图仅调用天地图矢量与中文注记瓦片，不加载 OpenStreetMap 备用底图。站内登录中间件保护网站、预览部署与数据接口，仅允许配置的账号访问。独立小程序免登录访问自身的静态服务。部署后检查：
 
 - `/`：地图、天气、过境与联合推荐页面。
 - `/api/health`：应返回 `status: ok`。
@@ -104,7 +104,7 @@ Cloudflare 的 Git 集成会在每次 `main` 分支更新后自动重新部署�
 
 ## 微信小程序
 
-原生工程见 [miniprogram/README.md](miniprogram/README.md)，独立静态服务见 [mini-static/README.md](mini-static/README.md)。迁移版使用独立访问口令及30天签名会话，天气、轨道与26份Word由专属定时任务生成，不使用CloudBase或网站运行数据。腾讯地图仅显示水库标记，网页继续使用天地图。线上认证与静态文件读取已验证；新域名、小程序手机联调和体验版更新仍待完成。原1.0.0的手机验收属于旧CloudBase版本。
+原生工程见 [miniprogram/README.md](miniprogram/README.md)，独立静态服务见 [mini-static/README.md](mini-static/README.md)。按用户要求，小程序改为免登录，打开即可使用；天气、轨道与26份Word由专属定时任务生成，不使用CloudBase或网站运行数据。腾讯地图仅显示水库标记，网页继续使用天地图及原有登录。静态文件地址公开可读。用户已确认保存新域名；免登录客户端手机联调和1.1.0体验版更新仍待完成。原1.0.0的手机验收属于旧CloudBase版本。
 
 ```powershell
 pnpm miniprogram:prepare

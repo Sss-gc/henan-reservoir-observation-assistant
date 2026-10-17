@@ -17,9 +17,9 @@ const firstDate = sourceOrbit.items.map((p) => p.date).sort()[0]
 const fixtureNow = Date.parse(`${firstDate}T12:00:00+08:00`)
 const originalNow = Date.now
 Date.now = () => fixtureNow
-let checks = 0, weatherFailure = false, orbitFailure = false, unauthorized = false, signInFailure = false
+let checks = 0, weatherFailure = false, orbitFailure = false, unauthorized = false, requestFailure = false
 let writeFailure = false, openFailure = false
-const calls = { requests: [], init: [], signIn: [], downloads: [], clipboard: [], navigation: [], storage: new Map(), map: [], files: [], documents: [] }
+const calls = { requests: [], downloads: [], clipboard: [], navigation: [], storage: new Map(), map: [], files: [], documents: [] }
 // All artificial weather lives in this test fixture, never in the mini program.
 const fixtureWeather = Object.fromEntries(sourceReservoirs.features.map(({ properties: p }) => [p.id, {
   source: '中央气象台', sourceUrl: 'https://www.nmc.cn/test-fixture', stationName: p.city,
@@ -51,12 +51,9 @@ const wx = {
     calls.requests.push(options)
     const route = new URL(options.url).pathname
     const success = (data, statusCode = 200) => options.success({ data, statusCode })
-    if (signInFailure) return options.fail(typeof signInFailure === 'object' ? signInFailure : { errMsg: 'request:fail timeout' })
-    if (route === '/api/session') return options.data.accessCode === 'test-only-independent-code'
-      ? success({ ok: true, data: { token: 'test-only-session-token', expiresAt: Date.now() + 86400000 } })
-      : success({ ok: false, error: { message: '访问口令不正确' } }, 401)
+    if (requestFailure) return options.fail(typeof requestFailure === 'object' ? requestFailure : { errMsg: 'request:fail timeout' })
     if (unauthorized) return success({ ok: false }, 401)
-    assert.equal(options.header.Authorization, 'Bearer test-only-session-token')
+    assert.equal(options.header.Authorization, undefined); assert.equal(options.method, 'GET')
     if (route === '/data/manifest.json') return success({ pipeline: 'miniprogram-static-independent-v1', documents: Object.fromEntries(
       ['all', ...sourceReservoirs.features.map((f) => f.properties.id)].map((id) => [id, {
         path: '/documents/' + id + '.docx', bytes: 8, fileName: (id === 'all' ? '全部水库' : id) + '_方案.docx',
@@ -90,7 +87,7 @@ function definition(relative, kind, loadModule) {
 app = definition('app.js', 'App')
 function page(relative) {
   const value = definition(`${relative}.js`, 'Page')
-  const result = { ...value, data: JSON.parse(JSON.stringify(value.data)) }
+  const result = { ...value, data: JSON.parse(JSON.stringify(value.data || {})) }
   result.setData = function (values, callback) {
     for (const [key, value] of Object.entries(values)) {
       const names = key.split('.'); let target = this.data
@@ -151,34 +148,30 @@ await check('推荐算法与网站一致，25座水库完整保留原始边界�
   }
   assert.ok(Math.min(...data.getMapData('HN_RSV_024').rings.flat().map((p) => p[1])) < 32.39)
 })
-await check('独立口令登录，保存到期会话且不保存口令，重新启动可恢复', async () => {
-  assert.equal(network.requireLogin(), false)
-  await assert.rejects(network.login('wrong'), /访问口令不正确/)
-  await network.login('test-only-independent-code')
-  assert.ok(network.getSession())
-  assert.ok(calls.storage.has('observer:static-session'))
-  assert.doesNotMatch(JSON.stringify([...calls.storage]), /test-only-independent-code/)
-  const saved = calls.storage.get('observer:static-session')
-  network.clearSession(); calls.storage.set('observer:static-session', saved); app.onLaunch()
-  assert.ok(network.getSession())
-  data.reset(); await Promise.all([data.refresh(), data.refresh()])
+await check('无需口令或会话即可进入首页，旧登录路径自动回首页', async () => {
+  calls.storage.set('observer:static-session', { token: 'old-token', expiresAt: Date.now() + 86400000 })
+  calls.storage.set('observer:session', { token: 'legacy-token' })
+  app.onLaunch()
+  assert.equal(calls.storage.has('observer:static-session'), false)
+  assert.equal(calls.storage.has('observer:session'), false)
+  data.reset(); const home = page('pages/dashboard/dashboard'); home.onLoad({}); await home.onShow()
+  assert.ok(home.data.selected); assert.ok(home.data.passes.length)
   assert.equal(calls.requests.filter((r) => r.url.endsWith('/data/orbits.json')).length, 1)
   assert.equal(calls.requests.filter((r) => r.url.endsWith('/data/weather.json')).length, 1)
   assert.equal(data.meta.orbitGeneratedAt, sourceOrbit.generated_at)
+  const oldEntry = page('pages/login/login'); oldEntry.onShow()
+  assert.equal(calls.navigation.at(-1), '/pages/dashboard/dashboard')
+  assert.ok(calls.requests.every((r) => !r.url.endsWith('/api/session') && !r.header.Authorization))
 })
-await check('域名与网络错误保留完整提示，登录失败不读取数据或恢复CloudBase', async () => {
-  network.clearSession()
+await check('域名与网络错误直接显示在首页，不要求登录或恢复CloudBase', async () => {
   for (const reason of ['request:fail url not in domain list', 'request:fail timeout']) {
-    signInFailure = { errMsg: reason }
-    const before = calls.requests.length
-    const login = page('pages/login/login'); login.data.accessCode = 'test-only-independent-code'
-    await login.submit(); assert.ok(login.data.error.includes(reason)); assert.equal(login.data.loading, false)
-    login.copyError(); assert.equal(calls.clipboard.at(-1), login.data.error)
-    assert.equal(calls.requests.length, before + 1)
-    assert.ok(calls.requests.at(-1).url.endsWith('/api/session'))
-    assert.equal(network.getSession(), null)
+    requestFailure = { errMsg: reason }; data.reset()
+    const before = calls.navigation.length
+    const home = page('pages/dashboard/dashboard'); home.onLoad({}); await home.onShow()
+    assert.ok(home.data.meta.orbitError.includes(reason)); assert.ok(home.data.meta.weatherError.includes(reason))
+    assert.equal(home.data.loading, false); assert.equal(calls.navigation.length, before)
   }
-  signInFailure = false; await network.login('test-only-independent-code')
+  requestFailure = false; data.reset(); await data.refresh()
 })
 await check('真实数据响应与网站推荐一致，无天气不生成晴天窗口', async () => {
   const { buildExperimentRecommendation } = require('./utils/recommendation.js')
@@ -198,7 +191,7 @@ await check('真实数据响应与网站推荐一致，无天气不生成晴天�
   orbitFailure = false; await data.refresh(true)
 })
 await check('首页搜索切换、筛选分页、详情与方案复制使用同一份数据', async () => {
-  app.onLaunch(); await network.login('test-only-independent-code'); const home = page('pages/dashboard/dashboard')
+  app.onLaunch(); const home = page('pages/dashboard/dashboard')
   home.onLoad({}); await home.onShow(); home.onReady(); assert.equal(home.data.passes.length, 10)
   home.loadMore(); assert.equal(home.data.passes.length, 20)
   home.onSearch({ detail: { value: '丹江' } }); assert.equal(home.data.filteredReservoirs.length, 1)
@@ -276,10 +269,12 @@ await check('原生地图标记切换、当前/全部视野和缩放工作，不
   assert.equal(calls.downloads.length, 0); assert.ok(calls.requests.every((r) => r.url.startsWith('https://mini.example.test/')))
   map.onUnload()
 })
-await check('会话失效清除数据，安装包不再包含示例天气和旧轨道', async () => {
+await check('服务错误清除失效数据，不跳转登录，安装包无旧轨道', async () => {
   unauthorized = true
-  await assert.rejects(data.refresh(true), /登录已过期/)
-  assert.equal(network.getSession(), null); assert.equal(data.getPasses('HN_RSV_001').length, 0)
+  const before = calls.navigation.length
+  await data.refresh(true)
+  assert.match(data.meta.orbitError, /HTTP 401/); assert.equal(calls.navigation.length, before)
+  assert.equal(data.getPasses('HN_RSV_001').length, 0)
   assert.equal(data.getWeather('HN_RSV_001'), null)
   for (const name of ['data/orbits.js', 'data/meta.js']) assert.equal(fs.existsSync(path.join(mini, name)), false)
   const source = filesIn(mini).filter((f) => /\.(js|wxml)$/.test(f) && !f.includes(`${path.sep}vendor${path.sep}`)).map((f) => fs.readFileSync(f, 'utf8')).join('\n')
@@ -287,4 +282,4 @@ await check('会话失效清除数据，安装包不再包含示例天气和旧�
   assert.ok(filesIn(mini).reduce((sum, f) => sum + fs.statSync(f).size, 0) < 2 * 1024 * 1024)
 })
 Date.now = originalNow
-console.log(`\n${checks}组小程序检查通过。静态服务使用测试替身；认证Worker另有独立测试，模拟器和真机仍需联调。`)
+console.log(`\n${checks}组小程序检查通过。静态服务使用测试替身；免登录静态服务另有独立测试，模拟器和真机仍需联调。`)

@@ -1,14 +1,12 @@
 const data = require('../../utils/data')
-const network = require('../../utils/network')
 const document = require('../../utils/document')
 
 Page({
   data: { meta: data.meta, scope: '当前水库', selected: null, groups: [], count: 0, reservoirCount: 0, loading: false, documentLoading: false, documentError: '' },
   async onShow() {
-    if (!network.requireLogin()) return
     this.setData({ loading: true })
     try { await data.refresh(); this.refreshPlan() }
-    catch (error) { if (error.unauthorized) network.requireLogin(); else wx.showToast({ title: error.message, icon: 'none' }) }
+    catch (error) { wx.showToast({ title: error.message, icon: 'none' }) }
     finally { this.setData({ loading: false }) }
   },
   refreshPlan() {
@@ -23,8 +21,7 @@ Page({
     this.setData({ documentLoading: true, documentError: '' })
     try { await document.downloadPlan(this.data.scope === '当前水库' ? 'current' : 'all', this.data.selected.id) }
     catch (error) {
-      if (error.unauthorized) network.requireLogin()
-      else this.setData({ documentError: error.message || error.errMsg || 'Word生成失败，请稍后重试' })
+      this.setData({ documentError: error.message || error.errMsg || 'Word下载失败，请稍后重试' })
     } finally { this.setData({ documentLoading: false }) }
   },
   copyPlan() {

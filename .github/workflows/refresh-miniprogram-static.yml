@@ -33,7 +33,7 @@ jobs:
       - run: python -m pip install -r backend/requirements-orbit.txt
       - name: Independently generate weather, observations and all Word files
         run: pnpm mini-static:build
-      - name: Publish one complete private static version
+      - name: Publish one complete independent static version
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.MINIPROGRAM_CLOUDFLARE_API_TOKEN }}
         run: pnpm mini-static:deploy

@@ -1,14 +1,1 @@
-<view class="page login-page">
-  <view class="eyebrow">RESERVOIR FIELD LAB</view><view class="title">星地同步实验助手</view>
-  <view class="subtitle">私人访问 · 独立观测数据</view>
-  <view class="card">
-    <view class="section-title">私人访问</view>
-    <view class="footnote">请输入管理员提供的访问口令，仅供获准的研究人员使用。</view>
-    <view class="field-label">访问口令</view>
-    <input class="login-input" password="{{true}}" maxlength="128" value="{{accessCode}}" placeholder="输入访问口令" bindinput="onAccessCode" bindconfirm="submit" confirm-type="go" />
-    <view wx:if="{{error}}" class="login-error">{{error}}</view>
-    <button wx:if="{{error}}" class="secondary" bindtap="copyError">复制错误信息</button>
-    <button class="primary" loading="{{loading}}" disabled="{{loading}}" bindtap="submit">进入实验助手</button>
-    <view class="footnote">独立获取中央气象台预报与卫星轨道预测，支持下载Word方案。登录有效期30天。</view>
-  </view>
-</view>
+<view class="page"><view class="subtitle">正在打开实验助手…</view></view>

@@ -15,8 +15,7 @@
     <view class="info">云端数据过旧或服务不可用时明确显示状态。外业前请再次核验天气、轨道生成时间和卫星实际成像计划。</view>
   </view>
   <view class="card">
-    <view class="section-title">访问与隐私</view>
-    <view class="info">使用管理员提供的独立口令进入，本机保存30天有效会话和选中的水库，不保存口令，不申请位置、手机号或通讯录权限。</view>
-    <button class="secondary logout-button" bindtap="logout">退出登录</button>
+    <view class="section-title">使用与隐私</view>
+    <view class="info">打开即可查看观测数据并下载Word，无需登录。本机仅保存选中的水库，不申请位置、手机号或通讯录权限。</view>
   </view>
 </view>

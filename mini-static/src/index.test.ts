@@ -1,67 +1,40 @@
 import { describe, expect, it } from 'vitest'
-import worker, { createSession } from './index.js'
+import worker from './index.js'
 
-const settings = { OBSERVER_ACCESS_CODE: 'test-only-independent-access-123456',
-  OBSERVER_SESSION_SECRET: 'test-only-session-key-with-at-least-32-bytes' }
 function environment() {
   const accesses: string[] = []
-  return { ...settings, accesses, ASSETS: { async fetch(request: Request) {
+  return { accesses, ASSETS: { async fetch(request: Request) {
     accesses.push(new URL(request.url).pathname)
-    return new Response(new URL(request.url).pathname.endsWith('.docx') ? new Uint8Array([80, 75, 3, 4]) : '{"pipeline":"miniprogram-static-independent-v1"}')
+    return new Response(request.method === 'HEAD' ? null : new URL(request.url).pathname.endsWith('.docx')
+      ? new Uint8Array([80, 75, 3, 4]) : '{"pipeline":"miniprogram-static-independent-v1"}')
   } } }
 }
-function request(path: string, token?: string, method = 'GET', data?: unknown) {
-  return new Request('https://private.example.test' + path, { method,
-    headers: { ...(token ? { Authorization: 'Bearer ' + token } : {}), 'Content-Type': 'application/json' },
-    ...(data ? { body: JSON.stringify(data) } : {}) })
-}
-
-describe('private static service authentication', () => {
-  it('rejects direct JSON, Word, unknown paths, HEAD and query-token requests before reading assets', async () => {
+const request = (path: string, method = 'GET') => new Request('https://static.example.test' + path, { method })
+describe('login-free independent static service', () => {
+  it('serves data and both Word scopes without credentials or server secrets', async () => {
     const env = environment()
-    for (const path of ['/data/orbits.json', '/data/weather.json', '/data/manifest.json', '/documents/all.docx', '/documents/HN_RSV_001.docx', '/index.html', '/data/orbits.json?token=anything']) {
-      for (const method of ['GET', 'HEAD']) expect((await worker.fetch(request(path, undefined, method), env)).status).toBe(401)
+    for (const path of ['/data/orbits.json', '/data/weather.json', '/data/manifest.json', '/documents/all.docx', '/documents/HN_RSV_025.docx']) {
+      for (const method of ['GET', 'HEAD']) {
+        const response = await worker.fetch(request(path, method), env)
+        expect(response.status).toBe(200)
+        expect(response.headers.get('Cache-Control')).toBe('no-store')
+        expect(response.headers.get('Content-Type')).toContain(path.endsWith('.docx') ? 'wordprocessingml.document' : 'application/json')
+      }
     }
-    expect(env.accesses).toEqual([])
-    const config = await import('node:fs/promises').then((fs) => fs.readFile('mini-static/wrangler.jsonc', 'utf8'))
-    expect(JSON.parse(config).assets.run_worker_first).toBe(true)
-    expect(JSON.parse(config).preview_urls).toBe(false)
+    expect(env.accesses).toHaveLength(10)
+    expect(await (await worker.fetch(request('/api/health'), {})).json()).toMatchObject({ status: 'ok', access: 'public' })
   })
-  it('only issues sessions after the independent code is verified; never returns the code', async () => {
+  it('has no login, refresh, website proxy or arbitrary file route', async () => {
     const env = environment()
-    const bad = await worker.fetch(request('/api/session', undefined, 'POST', { accessCode: 'wrong' }), env)
-    expect(bad.status).toBe(401)
-    const good = await worker.fetch(request('/api/session', undefined, 'POST', { accessCode: settings.OBSERVER_ACCESS_CODE }), env)
-    expect(good.status).toBe(200)
-    const body = await good.json() as any
-    expect(JSON.stringify(body)).not.toContain(settings.OBSERVER_ACCESS_CODE)
-    for (const path of ['/data/orbits.json', '/data/weather.json', '/documents/all.docx', '/documents/HN_RSV_025.docx']) {
-      const response = await worker.fetch(request(path, body.data.token), env)
-      expect(response.status).toBe(200)
-      expect(response.headers.get('Cache-Control')).toBe('private, no-store')
+    for (const path of ['/api/session', '/public/data/orbit-passes.json', '/api/weather', '/refresh', '/.dev.vars', '/documents/unknown.docx']) {
+      expect((await worker.fetch(request(path), env)).status).toBe(404)
     }
-    expect(env.accesses).toHaveLength(4)
-  })
-  it('rejects forged, expired and rotated credentials; no access if server secrets are missing', async () => {
-    const env = environment()
-    const active = await createSession(env)
-    const expired = await createSession(env, Date.now() - 31 * 86400000)
-    for (const token of [expired.token, active.token + 'invalid', active.token.split('.')[0] + '.forged']) {
-      expect((await worker.fetch(request('/data/orbits.json', token), env)).status).toBe(401)
-    }
-    env.OBSERVER_ACCESS_CODE += '-rotated'
-    expect((await worker.fetch(request('/data/orbits.json', active.token), env)).status).toBe(401)
-    env.OBSERVER_SESSION_SECRET = ''
-    expect((await worker.fetch(request('/documents/all.docx', active.token), env)).status).toBe(503)
+    expect((await worker.fetch(request('/data/orbits.json', 'POST'), env)).status).toBe(405)
     expect(env.accesses).toEqual([])
   })
-  it('only serves known static file paths after authentication; no website or refresh proxy', async () => {
-    const env = environment()
-    const session = await createSession(env)
-    for (const path of ['/public/data/orbit-passes.json', '/api/weather', '/refresh', '/.dev.vars', '/documents/unknown.docx']) {
-      expect((await worker.fetch(request(path, session.token), env)).status).toBe(404)
-    }
-    expect((await worker.fetch(request('/data/orbits.json', session.token, 'POST', { uid: 'forged' }), env)).status).toBe(405)
-    expect(env.accesses).toEqual([])
+  it('reports unavailable assets instead of returning a successful empty document', async () => {
+    const response = await worker.fetch(request('/documents/all.docx'), { ASSETS: { fetch: async () => new Response(null, { status: 404 }) } })
+    expect(response.status).toBe(503)
+    expect(await response.json()).toMatchObject({ error: { code: 'DATA_NOT_READY' } })
   })
 })

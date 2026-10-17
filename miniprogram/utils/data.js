@@ -50,9 +50,6 @@ async function refresh(force = false) {
     const [orbit, weather] = await Promise.allSettled([
       network.getOrbits(), network.getWeather(),
     ])
-    if ([orbit, weather].some((result) => result.status === 'rejected' && result.reason.unauthorized)) {
-      reset(); const error = new Error('登录已过期，请重新登录'); error.unauthorized = true; throw error
-    }
     const today = beijingDay()
     try {
       if (orbit.status === 'rejected') throw orbit.reason

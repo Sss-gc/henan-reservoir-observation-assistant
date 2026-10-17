@@ -1,5 +1,4 @@
 const data = require('../../utils/data')
-const network = require('../../utils/network')
 
 Page({
   data: {
@@ -18,7 +17,6 @@ Page({
   },
   onUnload() { this._mapReady = false },
   onShow() {
-    if (!network.requireLogin()) return
     const id = getApp().globalData.selectedReservoirId
     if (!this.data.selected || this.data.selected.id !== id) this.loadReservoir(id)
     return this.syncData()
@@ -31,8 +29,7 @@ Page({
       this.setData({ meta: { ...data.meta } })
       this.loadReservoir(this.data.selected.id, false)
     } catch (error) {
-      if (error.unauthorized) network.requireLogin()
-      else this.setData({ syncError: error.message })
+      this.setData({ syncError: error.message })
     } finally { this.setData({ loading: false }); wx.stopPullDownRefresh() }
   },
   loadReservoir(id, resetFilters = true) {

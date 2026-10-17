@@ -1,16 +1,14 @@
 const data = require('../../utils/data')
-const network = require('../../utils/network')
 
 Page({
   data: { meta: data.meta, pass: null, notFound: false, weather: null, error: '' },
   async onLoad(options) {
-    if (!network.requireLogin()) return
     // WeChat already decodes query-string values before onLoad.
     try {
       await data.refresh()
       const pass = data.getPass(options.id)
       this.setData({ meta: { ...data.meta }, pass, notFound: !pass, weather: pass ? data.getWeather(pass.reservoir_id) : null })
-    } catch (error) { if (error.unauthorized) network.requireLogin(); else this.setData({ error: error.message }) }
+    } catch (error) { this.setData({ error: error.message }) }
   },
   copyWindow() {
     const p = this.data.pass
