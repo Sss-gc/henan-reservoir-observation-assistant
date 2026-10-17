@@ -3,4 +3,4 @@
 .field-label { margin: 30rpx 0 10rpx; color: #aac3d1; font-size: 24rpx; }
 .login-input { padding: 18rpx 20rpx; height: 90rpx; border-radius: 12rpx; background: #071b26; border: 1rpx solid #234353; }
 .primary { margin-top: 34rpx; width: 100%; }
-.login-error { margin-top: 24rpx; color: #fda4af; font-size: 24rpx; }
+.login-error { margin-top: 24rpx; color: #fda4af; font-size: 24rpx; word-break: break-all; }

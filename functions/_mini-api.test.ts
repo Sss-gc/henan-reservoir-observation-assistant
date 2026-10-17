@@ -58,7 +58,7 @@ describe('mini program private website access', () => {
 describe('Tianditu tile route', () => {
   const run = (query: string) => mapTile({ request: new Request(`https://site.test/api/map-tile?${query}`), env: environment() } as Parameters<typeof mapTile>[0]) as Promise<Response>
   it('uses the website vec/cva WMTS service and does not return the key', async () => {
-    const fetcher = vi.fn(async (_input: RequestInfo | URL) => new Response(new Uint8Array([137, 80, 78, 71]), { headers: { 'Content-Type': 'image/png' } }))
+    const fetcher = vi.fn(async (_input: RequestInfo | URL) => new Response(new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]), { headers: { 'Content-Type': 'application/octet-stream' } }))
     vi.stubGlobal('fetch', fetcher)
     for (const layer of ['vec', 'cva']) {
       const response = await run(`layer=${layer}&z=8&x=210&y=100`)
@@ -75,5 +75,12 @@ describe('Tianditu tile route', () => {
     for (const query of ['layer=http://evil&z=8&x=1&y=1', 'layer=vec&z=8&x=1', 'layer=vec&z=4&x=16&y=0', 'layer=vec&z=30&x=0&y=0']) expect((await run(query)).status).toBe(400)
     expect(fetcher).not.toHaveBeenCalled()
     expect((await run('layer=vec&z=8&x=1&y=1')).status).toBe(502)
+  })
+  it('reports upstream permission errors without exposing the configured key', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => Response.json({ code: 301012, msg: '权限类型错误 test-map-key' }, { status: 403 })))
+    const response = await run('layer=vec&z=8&x=1&y=1')
+    const body = await response.json() as { error: string }
+    expect(response.status).toBe(502); expect(body.error).toContain('301012')
+    expect(body.error).toContain('权限类型错误'); expect(body.error).not.toContain('test-map-key')
   })
 })

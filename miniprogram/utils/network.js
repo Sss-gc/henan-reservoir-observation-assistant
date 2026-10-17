@@ -12,6 +12,10 @@ function headers() {
   const value = getSession()
   return value ? { Authorization: `Bearer ${value.token}` } : {}
 }
+function connectionError(failure, source) {
+  const detail = typeof failure?.errMsg === 'string' ? failure.errMsg : ''
+  return new Error(`${source}请求失败${detail ? `：${detail}` : '，请检查网络连接'}`)
+}
 function request(path, options = {}) {
   return new Promise((resolve, reject) => {
     wx.request({ url: apiBase + path, method: options.method || 'GET', data: options.data,
@@ -25,7 +29,7 @@ function request(path, options = {}) {
           reject(new Error(response.data?.error || `网站接口返回 HTTP ${response.statusCode}`)); return
         }
         resolve(response.data)
-      }, fail() { reject(new Error('无法连接网站接口，请检查网络及小程序合法域名配置')) },
+      }, fail(error) { reject(connectionError(error, '网站接口')) },
     })
   })
 }
@@ -47,9 +51,16 @@ function downloadTile(layer, z, x, y) {
         if (response.statusCode === 200) resolve(response.tempFilePath)
         else {
           if (response.statusCode === 401) clearSession()
-          reject(new Error(response.statusCode === 401 ? '登录已过期，请重新登录' : response.statusCode === 503 ? '天地图服务端key尚未配置' : '天地图加载失败，请检查网络或服务许可'))
+          let message = response.statusCode === 401 ? '登录已过期，请重新登录' : response.statusCode === 503 ? '天地图服务端key尚未配置' : `天地图接口返回 HTTP ${response.statusCode}`
+          if (response.tempFilePath) {
+            try {
+              const body = JSON.parse(wx.getFileSystemManager().readFileSync(response.tempFilePath, 'utf8'))
+              if (typeof body.error === 'string') message = body.error
+            } catch { /* Keep the HTTP status when the error body is unavailable. */ }
+          }
+          reject(new Error(message))
         }
-      }, fail() { reject(new Error('天地图连接失败，请检查 downloadFile 合法域名配置')) },
+      }, fail(error) { reject(connectionError(error, '天地图')) },
     })
   })
 }

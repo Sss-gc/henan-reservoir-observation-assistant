@@ -5,6 +5,6 @@
 .tile { position: absolute; width: 256px; height: 256px; }
 .boundary-canvas { z-index: 2; }
 .zoom-controls { position: absolute; top: 10px; right: 10px; z-index: 3; }
-.zoom-controls button { display: block; width: 32px; height: 32px; margin: 0 0 3px; padding: 0; border-radius: 5px; line-height: 32px; font-size: 23px; color: #17434c; background: #fff; }
+.zoom-button { display: block; width: 32px; height: 32px; margin: 0 0 3px; padding: 0; border-radius: 5px; line-height: 32px; font-size: 23px; color: #17434c; background: #fff; }
 .map-status { position: absolute; left: 8px; right: 48px; top: 8px; z-index: 3; padding: 5px 8px; border-radius: 5px; color: #324c54; background: rgba(255,255,255,.94); font-size: 11px; }
 .attribution { position: absolute; left: 0; bottom: 0; z-index: 3; padding: 1px 6px; font-size: 10px; line-height: 17px; color: #24434a; background: rgba(255,255,255,.95); }

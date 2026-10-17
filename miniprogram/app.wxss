@@ -18,8 +18,8 @@ button::after { border: 0; }
 .pill { display: inline-block; padding: 5rpx 15rpx; border-radius: 999rpx; font-size: 21rpx; background: #123b43; color: #5eead4; white-space: nowrap; }
 .pill.amber { color: #f3d387; background: #3a301b; }
 .pill.slate { color: #aac3d1; background: #203946; }
-.primary { width: 100%; padding: 24rpx 28rpx; background: #2dd4bf; color: #062426; font-weight: 700; }
-.secondary { width: 100%; padding: 22rpx 28rpx; background: #123442; color: #b5dedf; border: 1rpx solid #285061; }
+button.primary { width: 100%; padding: 24rpx 28rpx; background: #2dd4bf; color: #062426; font-weight: 700; }
+button.secondary { width: 100%; padding: 22rpx 28rpx; background: #123442; color: #b5dedf; border: 1rpx solid #285061; }
 .text-button { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; width: auto; min-width: 0; padding: 10rpx 0 10rpx 18rpx; color: #5eead4; background: transparent; font-size: 23rpx; white-space: nowrap; }
 .chip-strip { margin: 24rpx 0; white-space: nowrap; width: 100%; }
 .chip { display: inline-block; padding: 12rpx 23rpx; margin-right: 12rpx; color: #9db8c8; border: 1rpx solid #234353; border-radius: 999rpx; font-size: 24rpx; background: #0a202c; }
