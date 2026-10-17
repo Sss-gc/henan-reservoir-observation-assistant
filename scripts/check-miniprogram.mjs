@@ -11,22 +11,32 @@ import ts from 'typescript'
 const root = fileURLToPath(new URL('../', import.meta.url)), mini = path.join(root, 'miniprogram')
 const require = createRequire(path.join(mini, 'package.json'))
 const sourceReservoirs = JSON.parse(fs.readFileSync(path.join(root, 'public/data/reservoirs.geojson'), 'utf8'))
-const sourceOrbit = JSON.parse(fs.readFileSync(path.join(root, 'public/data/orbit-passes.json'), 'utf8'))
+const sourceOrbit = { ...JSON.parse(fs.readFileSync(path.join(root, 'public/data/orbit-passes.json'), 'utf8')), pipeline: 'miniprogram-static-independent-v1' }
 const config = JSON.parse(fs.readFileSync(path.join(mini, 'app.json'), 'utf8'))
 const firstDate = sourceOrbit.items.map((p) => p.date).sort()[0]
 const fixtureNow = Date.parse(`${firstDate}T12:00:00+08:00`)
 const originalNow = Date.now
 Date.now = () => fixtureNow
-let checks = 0, weatherFailure = false, orbitFailure = false, unauthorized = false
-const calls = { requests: [], downloads: [], clipboard: [], navigation: [], storage: new Map(), map: [] }
+let checks = 0, weatherFailure = false, orbitFailure = false, unauthorized = false, signInFailure = false
+let writeFailure = false, openFailure = false
+const calls = { requests: [], init: [], signIn: [], downloads: [], clipboard: [], navigation: [], storage: new Map(), map: [], files: [], documents: [] }
 // All artificial weather lives in this test fixture, never in the mini program.
 const fixtureWeather = Object.fromEntries(sourceReservoirs.features.map(({ properties: p }) => [p.id, {
   source: '中央气象台', sourceUrl: 'https://www.nmc.cn/test-fixture', stationName: p.city,
-  publishedAt: `${firstDate}T08:00:00+08:00`, fetchedAt: sourceOrbit.generated_at, cacheStatus: 'kv',
+  publishedAt: `${firstDate}T08:00:00+08:00`, fetchedAt: sourceOrbit.generated_at, cacheStatus: 'cloud',
   days: Array.from({ length: 7 }, (_, i) => ({ date: new Date(Date.parse(firstDate) + i * 86400000).toISOString().slice(0, 10),
     dayCondition: i % 3 === 1 ? '多云' : '晴', nightCondition: '多云' })),
 }]))
 const wx = {
+  env: { USER_DATA_PATH: '/private-test-files' },
+  getFileSystemManager: () => ({ writeFile(options) {
+    calls.files.push(options)
+    if (writeFailure) options.fail({ errMsg: 'writeFile:fail storage full' }); else options.success({})
+  } }),
+  openDocument(options) {
+    calls.documents.push(options)
+    if (openFailure) options.fail({ errMsg: 'openDocument:fail file error' }); else options.success({})
+  },
   getStorageSync: (key) => calls.storage.get(key), setStorageSync: (key, value) => calls.storage.set(key, value),
   removeStorageSync: (key) => calls.storage.delete(key), stopPullDownRefresh() {}, showToast() {},
   setClipboardData: ({ data }) => calls.clipboard.push(data),
@@ -39,23 +49,35 @@ const wx = {
   },
   request(options) {
     calls.requests.push(options)
-    queueMicrotask(() => {
-      if (options.url.endsWith('/api/session')) {
-        options.success({ statusCode: 200, data: { token: 'test-only-signed-session', expiresAt: fixtureNow + 86400000 } }); return
-      }
-      if (unauthorized) { options.success({ statusCode: 401, data: { error: 'UNAUTHORIZED' } }); return }
-      if (options.url.includes('/api/weather')) {
-        options.success({ statusCode: weatherFailure ? 503 : 200, data: weatherFailure ? { error: 'weather unavailable' } :
-          { source: '中央气象台', generatedAt: sourceOrbit.generated_at, items: fixtureWeather } }); return
-      }
-      options.success({ statusCode: orbitFailure ? 503 : 200, data: orbitFailure ? { error: 'orbit unavailable' } : sourceOrbit })
-    })
+    const route = new URL(options.url).pathname
+    const success = (data, statusCode = 200) => options.success({ data, statusCode })
+    if (signInFailure) return options.fail(typeof signInFailure === 'object' ? signInFailure : { errMsg: 'request:fail timeout' })
+    if (route === '/api/session') return options.data.accessCode === 'test-only-independent-code'
+      ? success({ ok: true, data: { token: 'test-only-session-token', expiresAt: Date.now() + 86400000 } })
+      : success({ ok: false, error: { message: '访问口令不正确' } }, 401)
+    if (unauthorized) return success({ ok: false }, 401)
+    assert.equal(options.header.Authorization, 'Bearer test-only-session-token')
+    if (route === '/data/manifest.json') return success({ pipeline: 'miniprogram-static-independent-v1', documents: Object.fromEntries(
+      ['all', ...sourceReservoirs.features.map((f) => f.properties.id)].map((id) => [id, {
+        path: '/documents/' + id + '.docx', bytes: 8, fileName: (id === 'all' ? '全部水库' : id) + '_方案.docx',
+      }])) })
+    if (route.startsWith('/documents/')) return success(new Uint8Array([80, 75, 3, 4, 0, 0, 0, 0]).buffer)
+    if (route === '/data/weather.json') return weatherFailure ? success({ error: { message: 'weather unavailable' } }, 503)
+      : success({ source: '中央气象台', pipeline: 'miniprogram-static-independent-v1', generatedAt: sourceOrbit.generated_at, items: fixtureWeather })
+    if (route === '/data/orbits.json') return orbitFailure ? success({ error: { message: 'orbit unavailable' } }, 503) : success(sourceOrbit)
+    throw new Error('Unexpected request ' + route)
+  },
+  cloud: {
+    init() { throw new Error('免费体验环境不使用wx.cloud通道') },
+    callFunction() { throw new Error('免费体验环境不使用wx.cloud通道') },
   },
   downloadFile(options) { calls.downloads.push(options); throw new Error('原生地图不应通过wx.downloadFile下载瓦片') },
 }
+const configPath = require.resolve('./config.js')
+require.cache[configPath] = { id: configPath, filename: configPath, loaded: true, exports: { serviceBaseUrl: 'https://mini.example.test' } }
 globalThis.wx = wx
 const data = require('./utils/data.js'), network = require('./utils/network.js')
-function filesIn(dir) { return fs.readdirSync(dir, { withFileTypes: true }).flatMap((e) => e.isDirectory() ? filesIn(path.join(dir, e.name)) : [path.join(dir, e.name)]) }
+function filesIn(dir) { return fs.readdirSync(dir, { withFileTypes: true }).filter((e) => e.name !== 'node_modules').flatMap((e) => e.isDirectory() ? filesIn(path.join(dir, e.name)) : [path.join(dir, e.name)]) }
 async function check(name, action) { await action(); checks++; console.log(`✓ ${name}`) }
 let app
 function definition(relative, kind, loadModule) {
@@ -129,16 +151,34 @@ await check('推荐算法与网站一致，25座水库完整保留原始边界�
   }
   assert.ok(Math.min(...data.getMapData('HN_RSV_024').rings.flat().map((p) => p[1])) < 32.39)
 })
-await check('无登录先跳转、使用网站登录接口且仅保存会话', async () => {
-  data.reset(); assert.equal(data.getPasses('HN_RSV_001').length, 0); assert.equal(data.getWeather('HN_RSV_001'), null)
-  assert.equal(network.requireLogin(), false); assert.equal(calls.navigation.at(-1), '/pages/login/login')
-  await network.login('test@example.com', 'test-only-password')
-  assert.ok(network.getSession()); assert.doesNotMatch(JSON.stringify([...calls.storage]), /test-only-password/)
-  await Promise.all([data.refresh(), data.refresh()])
-  assert.equal(calls.requests.filter((r) => r.url.endsWith('/data/orbit-passes.json')).length, 1)
-  assert.equal(calls.requests.filter((r) => r.url.includes('/api/weather?all=1')).length, 1)
-  assert.ok(calls.requests.at(-1).header.Authorization.startsWith('Bearer '))
+await check('独立口令登录，保存到期会话且不保存口令，重新启动可恢复', async () => {
+  assert.equal(network.requireLogin(), false)
+  await assert.rejects(network.login('wrong'), /访问口令不正确/)
+  await network.login('test-only-independent-code')
+  assert.ok(network.getSession())
+  assert.ok(calls.storage.has('observer:static-session'))
+  assert.doesNotMatch(JSON.stringify([...calls.storage]), /test-only-independent-code/)
+  const saved = calls.storage.get('observer:static-session')
+  network.clearSession(); calls.storage.set('observer:static-session', saved); app.onLaunch()
+  assert.ok(network.getSession())
+  data.reset(); await Promise.all([data.refresh(), data.refresh()])
+  assert.equal(calls.requests.filter((r) => r.url.endsWith('/data/orbits.json')).length, 1)
+  assert.equal(calls.requests.filter((r) => r.url.endsWith('/data/weather.json')).length, 1)
   assert.equal(data.meta.orbitGeneratedAt, sourceOrbit.generated_at)
+})
+await check('域名与网络错误保留完整提示，登录失败不读取数据或恢复CloudBase', async () => {
+  network.clearSession()
+  for (const reason of ['request:fail url not in domain list', 'request:fail timeout']) {
+    signInFailure = { errMsg: reason }
+    const before = calls.requests.length
+    const login = page('pages/login/login'); login.data.accessCode = 'test-only-independent-code'
+    await login.submit(); assert.ok(login.data.error.includes(reason)); assert.equal(login.data.loading, false)
+    login.copyError(); assert.equal(calls.clipboard.at(-1), login.data.error)
+    assert.equal(calls.requests.length, before + 1)
+    assert.ok(calls.requests.at(-1).url.endsWith('/api/session'))
+    assert.equal(network.getSession(), null)
+  }
+  signInFailure = false; await network.login('test-only-independent-code')
 })
 await check('真实数据响应与网站推荐一致，无天气不生成晴天窗口', async () => {
   const { buildExperimentRecommendation } = require('./utils/recommendation.js')
@@ -158,7 +198,7 @@ await check('真实数据响应与网站推荐一致，无天气不生成晴天�
   orbitFailure = false; await data.refresh(true)
 })
 await check('首页搜索切换、筛选分页、详情与方案复制使用同一份数据', async () => {
-  app.onLaunch(); const home = page('pages/dashboard/dashboard')
+  app.onLaunch(); await network.login('test-only-independent-code'); const home = page('pages/dashboard/dashboard')
   home.onLoad({}); await home.onShow(); home.onReady(); assert.equal(home.data.passes.length, 10)
   home.loadMore(); assert.equal(home.data.passes.length, 20)
   home.onSearch({ detail: { value: '丹江' } }); assert.equal(home.data.filteredReservoirs.length, 1)
@@ -178,6 +218,25 @@ await check('首页搜索切换、筛选分页、详情与方案复制使用同�
   assert.equal(new Set(keys).size, keys.length); assert.doesNotMatch(calls.clipboard.at(-1), /示例|预览/)
   await detail.onLoad({ id: 'not-found' }); assert.equal(detail.data.notFound, true)
 })
+await check('当前和全部水库Word写入本机后以docx打开，保存/打开失败均可重试', async () => {
+  const plan = page('pages/plan/plan'); await plan.onShow()
+  const before = calls.requests.length
+  const pendingDownload = plan.downloadWord(); await plan.downloadWord(); await pendingDownload
+  assert.equal(calls.requests.length, before + 2, '重复点击只下载一份清单和Word')
+  assert.ok(calls.requests.at(-1).url.endsWith('/documents/' + plan.data.selected.id + '.docx'))
+  assert.equal(calls.files.at(-1).data.byteLength, 8)
+  assert.equal(calls.documents.at(-1).filePath, calls.files.at(-1).filePath)
+  assert.equal(calls.documents.at(-1).fileType, 'docx'); assert.equal(calls.documents.at(-1).showMenu, true)
+  assert.equal(plan.data.documentLoading, false); assert.equal(plan.data.documentError, '')
+  plan.selectScope(event({ scope: '全部水库' })); await plan.downloadWord()
+  assert.ok(calls.requests.at(-1).url.endsWith('/documents/all.docx'))
+  assert.match(calls.files.at(-1).filePath, /全部水库_方案\.docx$/)
+  writeFailure = true; const opened = calls.documents.length; await plan.downloadWord()
+  assert.match(plan.data.documentError, /Word保存失败.*storage full/); assert.equal(calls.documents.length, opened)
+  writeFailure = false; openFailure = true; await plan.downloadWord()
+  assert.match(plan.data.documentError, /Word打开失败.*file error/); assert.equal(plan.data.documentLoading, false)
+  openFailure = false; await plan.downloadWord(); assert.equal(plan.data.documentError, '')
+})
 await check('腾讯地图显示坐标转换正确，原始边界及面积保持不变', () => {
   const fixture = { selectedId: 'point', rings: [], markers: [{ id: 'point', name: 'test', longitude: 116.397128, latitude: 39.916527 }] }
   const beijing = data.buildNativeMapData(fixture).view.markers[0]
@@ -190,12 +249,10 @@ await check('腾讯地图显示坐标转换正确，原始边界及面积保持�
     const source = data.getMapData(reservoir.id), before = JSON.stringify(source)
     const map = data.buildNativeMapData(source)
     assert.equal(JSON.stringify(source), before); assert.equal(data.getReservoir(reservoir.id).area_km2, reservoir.area_km2)
-    assert.equal(map.view.polyline.length, source.rings.length)
-    map.view.polyline.forEach((line, i) => assert.equal(line.points.length, source.rings[i].length))
+    assert.equal(map.view.polyline, undefined); assert.equal(map.view.polygons, undefined)
     const [sw, ne] = map.currentBounds
-    for (const line of map.view.polyline) for (const p of line.points) {
-      assert.ok(p.longitude >= sw.longitude && p.longitude <= ne.longitude && p.latitude >= sw.latitude && p.latitude <= ne.latitude)
-    }
+    const selected = map.view.markers.find((marker) => map.markerIds[marker.id] === reservoir.id)
+    assert.ok(selected.longitude >= sw.longitude && selected.longitude <= ne.longitude && selected.latitude >= sw.latitude && selected.latitude <= ne.latitude)
     assert.ok(Buffer.byteLength(JSON.stringify(map.view)) < 1024 * 1024, '原生地图setData应低于1MiB')
   }
 })
@@ -215,8 +272,8 @@ await check('原生地图标记切换、当前/全部视野和缩放工作，不
   map.selectMarker({ detail: { markerId: 999 } }); assert.equal(map.data.selected.id, 'HN_RSV_001')
   assert.equal(map.data.map.markers.find((m) => m.callout).id, 1)
   const template = fs.readFileSync(path.join(mini, 'pages/dashboard/dashboard.wxml'), 'utf8')
-  assert.match(template, /<map\s/); assert.doesNotMatch(template, /subkey|show-location/)
-  assert.equal(calls.downloads.length, 0); assert.ok(calls.requests.every((r) => !r.url.includes('/api/map-tile')))
+  assert.match(template, /<map\s/); assert.doesNotMatch(template, /subkey|show-location|polyline=|polygons=/)
+  assert.equal(calls.downloads.length, 0); assert.ok(calls.requests.every((r) => r.url.startsWith('https://mini.example.test/')))
   map.onUnload()
 })
 await check('会话失效清除数据，安装包不再包含示例天气和旧轨道', async () => {
@@ -225,9 +282,9 @@ await check('会话失效清除数据，安装包不再包含示例天气和旧�
   assert.equal(network.getSession(), null); assert.equal(data.getPasses('HN_RSV_001').length, 0)
   assert.equal(data.getWeather('HN_RSV_001'), null)
   for (const name of ['data/orbits.js', 'data/meta.js']) assert.equal(fs.existsSync(path.join(mini, name)), false)
-  const source = filesIn(mini).filter((f) => /\.(js|wxml)$/.test(f)).map((f) => fs.readFileSync(f, 'utf8')).join('\n')
-  assert.doesNotMatch(source, /preview-sample|示例天气|downloadTile|\/api\/map-tile|TIANDITU_SERVER_KEY/)
+  const source = filesIn(mini).filter((f) => /\.(js|wxml)$/.test(f) && !f.includes(`${path.sep}vendor${path.sep}`)).map((f) => fs.readFileSync(f, 'utf8')).join('\n')
+  assert.doesNotMatch(source, /preview-sample|示例天气|downloadTile|\/api\/map-tile|TIANDITU_SERVER_KEY|pages\.dev|wx\.cloud|@cloudbase|vendor\/cloudbase|tcloudbasegateway|\/data\/orbit-passes\.json/)
   assert.ok(filesIn(mini).reduce((sum, f) => sum + fs.statSync(f).size, 0) < 2 * 1024 * 1024)
 })
 Date.now = originalNow
-console.log(`\n${checks}组小程序检查通过。网络与页面流程使用测试替身；实际网站、模拟器和真机仍需联调。`)
+console.log(`\n${checks}组小程序检查通过。静态服务使用测试替身；认证Worker另有独立测试，模拟器和真机仍需联调。`)

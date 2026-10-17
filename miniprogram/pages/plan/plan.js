@@ -1,8 +1,9 @@
 const data = require('../../utils/data')
 const network = require('../../utils/network')
+const document = require('../../utils/document')
 
 Page({
-  data: { meta: data.meta, scope: '当前水库', selected: null, groups: [], count: 0, reservoirCount: 0, loading: false },
+  data: { meta: data.meta, scope: '当前水库', selected: null, groups: [], count: 0, reservoirCount: 0, loading: false, documentLoading: false, documentError: '' },
   async onShow() {
     if (!network.requireLogin()) return
     this.setData({ loading: true })
@@ -16,7 +17,16 @@ Page({
     const records = groups.flatMap((group) => group.records)
     this.setData({ meta: { ...data.meta }, selected, groups, count: records.length, reservoirCount: new Set(records.map((p) => p.reservoir_id)).size })
   },
-  selectScope(event) { this.setData({ scope: event.currentTarget.dataset.scope }); this.refreshPlan() },
+  selectScope(event) { if (this.data.documentLoading) return; this.setData({ scope: event.currentTarget.dataset.scope, documentError: '' }); this.refreshPlan() },
+  async downloadWord() {
+    if (this.data.loading || this.data.documentLoading || !this.data.selected) return
+    this.setData({ documentLoading: true, documentError: '' })
+    try { await document.downloadPlan(this.data.scope === '当前水库' ? 'current' : 'all', this.data.selected.id) }
+    catch (error) {
+      if (error.unauthorized) network.requireLogin()
+      else this.setData({ documentError: error.message || error.errMsg || 'Word生成失败，请稍后重试' })
+    } finally { this.setData({ documentLoading: false }) }
+  },
   copyPlan() {
     if (this.data.loading || !this.data.selected) return
     wx.setClipboardData({ data: data.buildPlanText(this.data.scope === '当前水库' ? this.data.selected.id : null) })

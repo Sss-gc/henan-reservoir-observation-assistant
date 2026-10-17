@@ -4,9 +4,9 @@
     <view class="brand-mark"><view class="brand-icon"></view></view>
   </view>
   <view class="subtitle">让卫星过境与晴好天气在水库相遇</view>
-  <view class="data-banner">{{loading ? '正在同步网站数据…' : '天气与过境同源：中央气象台 · 卫星轨道预测'}}</view>
+  <view class="data-banner">{{loading ? '正在获取云端数据…' : '独立数据：中央气象台 · 卫星轨道预测'}}</view>
   <view wx:if="{{syncError || meta.orbitError || meta.weatherError}}" class="preview-banner">{{syncError || meta.orbitError || meta.weatherError}}。下拉页面可重新同步。</view>
-  <view wx:if="{{meta.orbitStale || meta.weatherStale}}" class="preview-banner">网站数据尚未全部更新至今日，请核验下方轨道生成时间与天气更新时间。</view>
+  <view wx:if="{{meta.orbitStale || meta.weatherStale}}" class="preview-banner">云端数据尚未全部更新至今日，请核验下方轨道生成时间与天气更新时间。</view>
 
   <view class="search-box row">
     <text class="search-icon">⌕</text>
@@ -26,10 +26,10 @@
   <view class="card reservoir-card">
     <view class="row"><view><view class="section-note">当前水库 · {{selected.city}}</view><view class="reservoir-name">{{selected.name_cn}}</view></view><view class="area"><text>{{selected.area_km2}}</text><view>参考面积 km²</view></view></view>
     <view hidden="{{pickerOpen}}" class="reservoir-map" style="width:100%;height:410rpx;">
-      <map id="reservoir-map" class="native-map" style="display:block;width:100%;height:410rpx;" longitude="{{map.longitude}}" latitude="{{map.latitude}}" scale="{{map.scale}}" min-scale="4" max-scale="18" markers="{{map.markers}}" polyline="{{map.polyline}}" enable-zoom="{{true}}" enable-scroll="{{true}}" show-compass="{{true}}" show-scale="{{true}}" bindmarkertap="selectMarker" bindcallouttap="selectMarker" />
+      <map id="reservoir-map" class="native-map" style="display:block;width:100%;height:410rpx;" longitude="{{map.longitude}}" latitude="{{map.latitude}}" scale="{{map.scale}}" min-scale="4" max-scale="18" markers="{{map.markers}}" enable-zoom="{{true}}" enable-scroll="{{true}}" show-compass="{{true}}" show-scale="{{true}}" bindmarkertap="selectMarker" bindcallouttap="selectMarker" />
     </view>
     <view class="map-footer">
-      <text class="map-caption muted small">腾讯地图 · 水面边界轮廓</text>
+      <text class="map-caption muted small">腾讯地图 · 水库位置</text>
       <view class="map-actions"><button class="text-button map-zoom-button" size="mini" bindtap="zoomMapIn">＋</button><button class="text-button map-zoom-button" size="mini" bindtap="zoomMapOut">−</button><button class="text-button" size="mini" bindtap="overviewMap">全部水库</button><button class="text-button" size="mini" bindtap="fitMap">定位当前</button></view>
     </view>
   </view>
@@ -37,8 +37,8 @@
   <view class="card weather-card">
     <view class="row"><view class="section-title">7 天天气</view><text class="pill">中央气象台</text></view>
     <view wx:if="{{weather}}" class="section-note">{{weather.stationName}}站 · 发布 {{weather.publishedAt || '未标注'}}</view>
-    <view wx:if="{{weather}}" class="section-note">缓存更新 {{weather.fetchedAt}}{{weather.cacheStatus === 'kv-stale-fallback' ? ' · 上次有效缓存' : ''}}</view>
-    <view wx:if="{{!weatherDays.length}}" class="empty">{{loading ? '正在读取网站天气缓存…' : (meta.weatherError || '该水库天气尚未获取，下拉可重试。')}}</view>
+    <view wx:if="{{weather}}" class="section-note">缓存更新 {{weather.fetchedAt}}{{weather.cacheStatus === 'cloud-stale-fallback' ? ' · 上次有效缓存' : ''}}</view>
+    <view wx:if="{{!weatherDays.length}}" class="empty">{{loading ? '正在读取独立数据天气…' : (meta.weatherError || '该水库天气尚未获取，下拉可重试。')}}</view>
     <scroll-view scroll-x="{{true}}" class="weather-strip" enhanced="{{true}}" show-scrollbar="{{false}}">
       <view wx:for="{{weatherDays}}" wx:key="date" class="weather-day {{item.sunny ? 'sunny-day' : ''}}">
         <view class="weather-date">{{item.label}}</view><view class="weather-symbol">{{item.symbol}}</view><view class="day-condition">{{item.dayCondition}}</view><view class="muted weather-night">夜间 {{item.nightCondition}}</view>
@@ -51,7 +51,7 @@
   </scroll-view>
 
   <view class="card recommendations-card">
-    <view class="row"><view class="section-title">晴天实验推荐</view><text class="pill">网站同源</text></view>
+    <view class="row"><view class="section-title">晴天实验推荐</view><text class="pill">晴天匹配</text></view>
     <view class="section-note">白天严格为“晴” · 耀光风险单独提示</view>
     <view wx:for="{{recommendations}}" wx:key="id" class="recommendation" data-id="{{item.id}}" bindtap="openPass">
       <view class="row"><text class="pass-satellite">{{item.satellite}}</text><text class="recommendation-score">{{item.score}}<text class="small"> 分</text></text></view>
@@ -74,8 +74,8 @@
       <view class="row pass-date"><text>{{item.dateLabel}} {{item.time}}</text><text class="small risk-{{item.glint_risk}}">耀光{{item.glintLabel}}</text></view>
       <view class="muted small">{{item.sensor}} · {{item.resolution_m}} m · 完整覆盖</view>
     </view>
-    <view wx:if="{{!passes.length}}" class="empty">{{loading ? '正在读取网站轨道数据…' : (meta.orbitError || '当前筛选下没有窗口')}}</view>
+    <view wx:if="{{!passes.length}}" class="empty">{{loading ? '正在读取独立数据轨道…' : (meta.orbitError || '当前筛选下没有窗口')}}</view>
     <button wx:if="{{passTotal > passes.length}}" class="secondary load-more" bindtap="loadMore">继续查看（{{passes.length}} / {{passTotal}}）</button>
   </view>
-  <view class="footnote">过境日期与时刻为北京时间。窗口表示几何覆盖，不代表已安排成像；HJ-2B 为四台 CCD 相机的拼接覆盖。天气与轨道读取现有网站同一份数据，请核验来源更新时间。</view>
+  <view class="footnote">过境日期与时刻为北京时间。窗口表示几何覆盖，不代表已安排成像；HJ-2B 为四台 CCD 相机的拼接覆盖。天气与轨道由独立任务更新，请核验来源更新时间。</view>
 </view>

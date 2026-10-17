@@ -6,6 +6,8 @@
 .summary-metrics { display: flex; justify-content: space-around; text-align: center; padding: 28rpx 0; color: #88a6b5; font-size: 22rpx; }
 .summary-metrics text { font-size: 54rpx; color: #e6f1f6; font-weight: 600; }
 .copy-note { margin-top: 16rpx; text-align: center; }
+.copy-button { margin-top: 20rpx; }
+.document-error { margin-top: 18rpx; color: #fda4af; font-size: 24rpx; word-break: break-all; }
 .plan-record { margin-top: 24rpx; padding-top: 24rpx; border-top: 1rpx solid #203b4a; }
 .record-name { font-size: 27rpx; font-weight: 600; }
 .record-satellite { margin: 5rpx 0 10rpx; font-size: 24rpx; color: #c0d7e2; }

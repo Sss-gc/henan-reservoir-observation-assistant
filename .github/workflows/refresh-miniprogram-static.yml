@@ -1,0 +1,39 @@
+name: Refresh independent mini-program static service
+
+on:
+  schedule:
+    - cron: '15 1 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: miniprogram-static-publish
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: pnpm/action-setup@v4
+        with:
+          version: '11.19.0'
+      - run: pnpm install --frozen-lockfile
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: backend/requirements-orbit.txt
+      - run: python -m pip install -r backend/requirements-orbit.txt
+      - name: Independently generate weather, observations and all Word files
+        run: pnpm mini-static:build
+      - name: Publish one complete private static version
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.MINIPROGRAM_CLOUDFLARE_API_TOKEN }}
+        run: pnpm mini-static:deploy

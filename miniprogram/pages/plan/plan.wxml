@@ -3,16 +3,18 @@
   <view class="subtitle">按卫星系列整理晴天完整覆盖窗口</view>
   <view class="section-note">轨道生成 {{meta.orbitGeneratedAt || '未获取'}} · 天气批次 {{meta.weatherGeneratedAt || '未获取'}}</view>
   <view wx:if="{{meta.orbitError || meta.weatherError}}" class="preview-banner">{{meta.orbitError || meta.weatherError}}</view>
-  <view wx:if="{{meta.orbitStale || meta.weatherStale}}" class="preview-banner">网站数据尚未全部更新至今日，请核验来源时间。</view>
+  <view wx:if="{{meta.orbitStale || meta.weatherStale}}" class="preview-banner">云端数据尚未全部更新至今日，请核验来源时间。</view>
   <view class="scope-switch">
     <view class="scope {{scope === '当前水库' ? 'active' : ''}}" data-scope="当前水库" bindtap="selectScope">当前水库</view>
     <view class="scope {{scope === '全部水库' ? 'active' : ''}}" data-scope="全部水库" bindtap="selectScope">全部 25 座水库</view>
   </view>
   <view class="card summary-card">
-    <view class="row"><view class="section-title">{{scope === '当前水库' ? selected.name_cn : '河南省水库实验方案'}}</view><text class="pill">网站同源</text></view>
+    <view class="row"><view class="section-title">{{scope === '当前水库' ? selected.name_cn : '河南省水库实验方案'}}</view><text class="pill">晴天方案</text></view>
     <view class="summary-metrics"><view><text>{{count}}</text><view>晴天窗口</view></view><view><text>{{reservoirCount}}</text><view>涉及水库</view></view><view><text>7</text><view>预报天数</view></view></view>
-    <button class="primary" loading="{{loading}}" disabled="{{loading}}" bindtap="copyPlan">复制{{scope === '当前水库' ? '当前水库' : '全部水库'}}方案</button>
-    <view class="section-note copy-note">可粘贴到微信聊天、备忘录或文档中</view>
+    <button class="primary" loading="{{documentLoading}}" disabled="{{loading || documentLoading}}" bindtap="downloadWord">{{documentLoading ? '正在生成 Word…' : '下载 Word 方案'}}</button>
+    <view wx:if="{{documentError}}" class="document-error">{{documentError}}</view>
+    <view class="section-note copy-note">沿用网站 Word 模板，下载后打开文档，可在右上角菜单保存或转发</view>
+    <button class="secondary copy-button" disabled="{{loading || documentLoading}}" bindtap="copyPlan">复制方案文字</button>
   </view>
   <view wx:for="{{groups}}" wx:for-item="group" wx:key="name" class="card">
     <view class="row"><view class="section-title">{{group.name}} 系列</view><text class="muted small">{{group.records.length}} 条</text></view>
@@ -24,5 +26,5 @@
     <view wx:if="{{!group.records.length}}" class="empty">暂无符合条件的晴天完整覆盖窗口</view>
   </view>
   <button class="secondary back-button" bindtap="backToReservoir">返回水库观测 · 切换水库</button>
-  <view class="footnote">与网站方案一致，按 Sentinel → HJ → Landsat → GF 排序，同一水库、日期、卫星只保留一条晴天记录。耀光风险单独提示，晴天判断不代表已安排成像。天气未获取时无法形成对应水库的晴天方案。</view>
+  <view class="footnote">按 Sentinel → HJ → Landsat → GF 排序，同一水库、日期、卫星只保留一条晴天记录。耀光风险单独提示，晴天判断不代表已安排成像。天气未获取时无法形成对应水库的晴天方案。</view>
 </view>

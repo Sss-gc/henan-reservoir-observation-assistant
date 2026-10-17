@@ -11,6 +11,9 @@ backend/data/
 *.log
 .env
 .env.local
+.dev.vars
+.dev.vars.*
 miniprogram/project.private.config.json
+cloudbase/cloudbaserc.json
 *.docx
 !src/assets/observation-plan-template.docx

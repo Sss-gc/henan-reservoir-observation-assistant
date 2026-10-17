@@ -214,6 +214,19 @@ def _glint_geometry(
     }
 
 
+def _subpoint_coordinates(satellite_object: EarthSatellite, skyfield_times: Any) -> tuple[np.ndarray, np.ndarray]:
+    # Skyfield's nutation matrices for a whole 30-day array exceed cloud memory.
+    # Propagate the same sampling times in six-hour batches, retaining only coordinates.
+    count = len(skyfield_times)
+    lats, lons = np.empty(count), np.empty(count)
+    for offset in range(0, count, 720):
+        stop = min(offset + 720, count)
+        subpoints = wgs84.subpoint_of(satellite_object.at(skyfield_times[offset:stop]))
+        lats[offset:stop] = subpoints.latitude.degrees
+        lons[offset:stop] = subpoints.longitude.degrees
+    return lats, lons
+
+
 def _predict_satellite(
     db: Session,
     satellite: Satellite,
@@ -232,10 +245,7 @@ def _predict_satellite(
     ts = load.timescale(builtin=True)
     satellite_object = EarthSatellite.from_omm(ts, omm)
     skyfield_times = ts.from_datetimes(datetimes)
-    positions = satellite_object.at(skyfield_times)
-    subpoints = wgs84.subpoint_of(positions)
-    lats = np.asarray(subpoints.latitude.degrees)
-    lons = np.asarray(subpoints.longitude.degrees)
+    lats, lons = _subpoint_coordinates(satellite_object, skyfield_times)
     written = 0
 
     for reservoir in reservoir_collection()["features"]:

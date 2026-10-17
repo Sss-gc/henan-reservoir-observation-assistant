@@ -48,7 +48,7 @@ async function refresh(force = false) {
   if (!force && meta.loadedAt > Date.now() - 300000 && !meta.orbitError && !meta.weatherError) return meta
   pending = (async () => {
     const [orbit, weather] = await Promise.allSettled([
-      network.request('/data/orbit-passes.json'), network.request('/api/weather?all=1'),
+      network.getOrbits(), network.getWeather(),
     ])
     if ([orbit, weather].some((result) => result.status === 'rejected' && result.reason.unauthorized)) {
       reset(); const error = new Error('登录已过期，请重新登录'); error.unauthorized = true; throw error
@@ -57,13 +57,13 @@ async function refresh(force = false) {
     try {
       if (orbit.status === 'rejected') throw orbit.reason
       const body = orbit.value
-      if (body?.schema_version !== 'static-observation-v2' || !Number.isFinite(Date.parse(body.generated_at)) ||
+      if (body?.pipeline !== 'miniprogram-static-independent-v1' || body.schema_version !== 'static-observation-v2' || !Number.isFinite(Date.parse(body.generated_at)) ||
           !Array.isArray(body.items) || !body.items.length || !body.items.every((p) =>
             typeof p.id === 'string' && getReservoir(p.reservoir_id) && typeof p.satellite === 'string' &&
             typeof p.sensor === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(p.date) &&
             Number.isFinite(Date.parse(p.time_utc)) && Number.isFinite(p.coverage) &&
             Number.isFinite(p.glint_angle_deg) && Object.prototype.hasOwnProperty.call(GLINT_LABELS, p.glint_risk))) {
-        throw new Error('网站轨道数据格式不完整')
+        throw new Error('独立轨道数据格式不完整')
       }
       passes = body.items.map(normalizeObservationPass).filter((p) => isSupportedObservationPass(p) && p.coverage >= 99.9)
         .sort((a, b) => a.time_utc.localeCompare(b.time_utc))
@@ -76,11 +76,11 @@ async function refresh(force = false) {
     try {
       if (weather.status === 'rejected') throw weather.reason
       const body = weather.value
-      if (body?.source !== '中央气象台' || !body.items || !Number.isFinite(Date.parse(body.generatedAt))) throw new Error('网站天气数据格式不完整')
+      if (body?.pipeline !== 'miniprogram-static-independent-v1' || body.source !== '中央气象台' || !body.items || !Number.isFinite(Date.parse(body.generatedAt))) throw new Error('独立天气数据格式不完整')
       weatherById = Object.fromEntries(Object.entries(body.items).filter(([id, value]) => getReservoir(id) && validWeather(value)))
-      if (!Object.keys(weatherById).length) throw new Error('网站天气缓存尚未就绪')
+      if (!Object.keys(weatherById).length) throw new Error('云端天气缓存尚未就绪')
       Object.assign(meta, { weatherGeneratedAt: body.generatedAt, weatherError: '',
-        weatherStale: Object.values(weatherById).some((w) => w.cacheStatus === 'kv-stale-fallback' || beijingDate(w.fetchedAt) < today) })
+        weatherStale: Object.values(weatherById).some((w) => w.cacheStatus === 'cloud-stale-fallback' || beijingDate(w.fetchedAt) < today) })
     } catch (error) {
       weatherById = {}; Object.assign(meta, { weatherGeneratedAt: '', weatherError: error.message, weatherStale: false })
     }
@@ -131,8 +131,8 @@ function getPlanGroups(id) {
 }
 function buildPlanText(id) {
   const lines = [`${id ? getReservoir(id).name_cn : '全部25座水库'} · 晴天实验方案`,
-    `轨道生成时间：${meta.orbitGeneratedAt || '未获取'}`, `天气来源：中央气象台；网站缓存批次：${meta.weatherGeneratedAt || '未获取'}`,
-    meta.orbitStale ? '提示：网站轨道不是今日更新，请核验数据时间。' : '',
+    `轨道生成时间：${meta.orbitGeneratedAt || '未获取'}`, `天气来源：中央气象台；独立数据批次：${meta.weatherGeneratedAt || '未获取'}`,
+    meta.orbitStale ? '提示：云端轨道不是今日更新，请核验数据时间。' : '',
     meta.weatherStale ? '提示：部分天气为旧缓存，请核验各站更新时间。' : '',
     meta.orbitError, meta.weatherError].filter(Boolean)
   for (const group of getPlanGroups(id)) {
@@ -140,7 +140,7 @@ function buildPlanText(id) {
     if (!group.records.length) lines.push('暂无符合条件的晴天完整覆盖窗口。')
     for (const p of group.records) lines.push(`${p.date} ${p.time}（北京时间）｜${p.reservoirName}｜${p.satellite}｜白天晴｜耀光${p.glintLabel} ${p.glintAngle}°`)
   }
-  lines.push('', '天气与轨道读取现有网站同一套数据；白天天气严格为“晴”，耀光风险单独提示。',
+  lines.push('', '天气与轨道来自小程序独立数据；白天天气严格为“晴”，耀光风险单独提示。',
     '过境是几何覆盖预测，不代表已安排成像。出发前请核验站点预报与轨道生成时间。')
   return lines.join('\n')
 }
@@ -183,12 +183,11 @@ function buildNativeMapData(map) {
         fontSize: 12, color: '#123442', bgColor: '#E7FAF6', borderRadius: 4 } } : {}),
     }
   })
-  const polyline = map.rings.filter((ring) => ring.length > 1).map((ring) => ({
-    points: ring.map(([lon, lat]) => wgs84ToGcj02(lon, lat)), color: '#10B7A5', width: 2,
-  }))
   const selected = markers.find((marker) => markerIds[marker.id] === map.selectedId)
-  return { markerIds, currentBounds: bounds(polyline.flatMap((line) => line.points)), allBounds: bounds(markers),
-    view: { longitude: selected.longitude, latitude: selected.latitude, scale: 9, markers, polyline } }
+  // Boundary coordinates only determine the camera framing; no vector overlay is rendered.
+  const currentBounds = bounds(map.rings.flat().map(([lon, lat]) => wgs84ToGcj02(lon, lat)))
+  return { markerIds, currentBounds, allBounds: bounds(markers),
+    view: { longitude: selected.longitude, latitude: selected.latitude, scale: 9, markers } }
 }
 function getMapData(id) {
   const selected = getReservoir(id)

@@ -20,7 +20,7 @@
 ## 部署架构
 
 ```text
-浏览器 / 微信小程序（站内账号与签名会话）
+浏览器（站内账号与签名会话）
   ├─ Cloudflare Pages：Vue 静态网页、25 座水库 GeoJSON、轨道 JSON
   └─ Pages Function /api/weather：按水库读取 Workers KV 缓存
 
@@ -29,6 +29,10 @@ Cloudflare Worker Cron（每天北京时间 09:00）
 
 GitHub Actions（每天北京时间 02:15；失败时 08:15 补刷）
   └─ CelesTrak OMM → SGP4/幅宽完整覆盖计算 → 更新 orbit-passes.json
+
+独立微信小程序（私人访问口令与到期会话）
+  └─ 独立认证Worker → 专属静态JSON和Word
+       └─ GitHub Actions每日独立获取NMC/OMM、计算轨道并原子发布
 ```
 
 网站运行时不需要 FastAPI、SQLite、Docker、Copernicus 密钥或 USGS 密钥。仓库保留的 Python 轨道模块仅供 GitHub Actions 每日生成静态结果。
@@ -90,7 +94,7 @@ pnpm build
 | Production variable | `VITE_TIANDITU_KEY`（天地图浏览器端 key） |
 | Pages KV binding | `WEATHER_KV`（与定时 Worker 共用） |
 
-生产页面需配置绑定站点域名的天地图浏览器端 key。地图仅调用天地图矢量与中文注记瓦片，不加载 OpenStreetMap 备用底图。站内登录中间件保护网站、预览部署与数据接口，仅允许配置的账号访问；小程序使用相同凭据和签名会话。部署后检查：
+生产页面需配置绑定站点域名的天地图浏览器端 key。地图仅调用天地图矢量与中文注记瓦片，不加载 OpenStreetMap 备用底图。站内登录中间件保护网站、预览部署与数据接口，仅允许配置的账号访问。独立小程序使用自身的微信身份访问控制。部署后检查：
 
 - `/`：地图、天气、过境与联合推荐页面。
 - `/api/health`：应返回 `status: ok`。
@@ -100,11 +104,13 @@ Cloudflare 的 Git 集成会在每次 `main` 分支更新后自动重新部署�
 
 ## 微信小程序
 
-独立原生微信小程序工程见 [`miniprogram/README.md`](miniprogram/README.md)。使用网站账号登录，读取同一套中央气象台缓存和轨道文件，共用晴天与耀光算法；已移除示例天气和内置旧轨道。小程序采用微信内置腾讯地图，基础地图功能不单独申请Key或调用瓦片代理；水库边界仅在显示时转换为GCJ-02，原始边界与面积保持不变。网站底图继续使用天地图。当前仍在开发联调，尚未完成真机域名配置、正式审核或发布。
+原生工程见 [miniprogram/README.md](miniprogram/README.md)，独立静态服务见 [mini-static/README.md](mini-static/README.md)。迁移版使用独立访问口令及30天签名会话，天气、轨道与26份Word由专属定时任务生成，不使用CloudBase或网站运行数据。腾讯地图仅显示水库标记，网页继续使用天地图。线上认证与静态文件读取已验证；新域名、小程序手机联调和体验版更新仍待完成。原1.0.0的手机验收属于旧CloudBase版本。
 
 ```powershell
 pnpm miniprogram:prepare
 pnpm miniprogram:check
+pnpm mini-static:build
+pnpm mini-static:deploy
 ```
 
 ## 主要目录

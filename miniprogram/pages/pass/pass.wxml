@@ -1,5 +1,5 @@
 <view class="page">
-  <view wx:if="{{meta.orbitStale || meta.weatherStale}}" class="preview-banner">网站数据尚未全部更新至今日，请核验来源时间。</view>
+  <view wx:if="{{meta.orbitStale || meta.weatherStale}}" class="preview-banner">云端数据尚未全部更新至今日，请核验来源时间。</view>
   <block wx:if="{{pass}}">
     <view class="eyebrow">SATELLITE OVERPASS</view>
     <view class="title detail-title">{{pass.satellite}}</view>
@@ -26,7 +26,7 @@
     </view>
     <view class="card small">
       <view class="section-title">数据来源</view>
-      <view class="source-line muted">网站轨道生成时间：{{meta.orbitGeneratedAt}}</view>
+      <view class="source-line muted">轨道生成时间：{{meta.orbitGeneratedAt}}</view>
       <view class="source-line muted">轨道历元：{{pass.element_epoch}}</view>
       <view class="source-line muted">幅宽：{{pass.swath_km}} km</view>
       <view class="source-line muted">天气：中央气象台 · {{weather.stationName || '未获取'}}站</view>
@@ -35,5 +35,5 @@
     <view class="actions"><button class="primary" bindtap="copyWindow">复制窗口信息</button><button class="secondary" bindtap="openPlan">查看实验方案</button></view>
     <view class="footnote">过境表示几何覆盖，不代表实际成像任务。耀光分级基于平静水平水面的几何估计，真实水面状态会影响观测。HJ-2B 为四台 CCD 相机的拼接覆盖。</view>
   </block>
-  <view wx:else="{{true}}" class="card empty">{{error || meta.orbitError || (notFound ? '没有找到这个窗口，请返回水库观测重新选择。' : '正在读取网站窗口…')}}</view>
+  <view wx:else="{{true}}" class="card empty">{{error || meta.orbitError || (notFound ? '没有找到这个窗口，请返回水库观测重新选择。' : '正在读取过境窗口…')}}</view>
 </view>

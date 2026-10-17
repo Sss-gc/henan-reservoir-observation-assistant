@@ -1,5 +1,5 @@
 {
-  "description": "星地同步实验助手 · 网站同源数据",
+  "description": "星地同步实验助手 · 独立静态数据与私人访问",
   "miniprogramRoot": "./",
   "compileType": "miniprogram",
   "appid": "wx19d45d426bb304d6",
@@ -29,6 +29,9 @@
   },
   "packOptions": {
     "ignore": [
+      { "value": "node_modules", "type": "folder" },
+      { "value": "vendor", "type": "folder" },
+      { "value": "package-lock.json", "type": "file" },
       {
         "value": "README.md",
         "type": "file"

@@ -1,46 +1,66 @@
-const { apiBase } = require('../config')
-const SESSION_KEY = 'observer:session'
+const { serviceBaseUrl } = require('../config')
+const SESSION_KEY = 'observer:static-session'
 let session = null
-
+function init() {
+  const saved = wx.getStorageSync(SESSION_KEY)
+  if (saved && typeof saved.token === 'string' && saved.expiresAt > Date.now()) session = saved
+}
 function getSession() {
-  if (!session) session = wx.getStorageSync(SESSION_KEY) || null
   if (session && session.expiresAt <= Date.now()) clearSession()
   return session
 }
-function clearSession() { session = null; wx.removeStorageSync(SESSION_KEY) }
-function headers() {
-  const value = getSession()
-  return value ? { Authorization: `Bearer ${value.token}` } : {}
-}
-function connectionError(failure, source) {
-  const detail = typeof failure?.errMsg === 'string' ? failure.errMsg : ''
-  return new Error(`${source}请求失败${detail ? `：${detail}` : '，请检查网络连接'}`)
+function clearSession() {
+  session = null
+  wx.removeStorageSync(SESSION_KEY)
+  wx.removeStorageSync('observer:session')
 }
 function request(path, options = {}) {
-  return new Promise((resolve, reject) => {
-    wx.request({ url: apiBase + path, method: options.method || 'GET', data: options.data,
-      timeout: 20000, header: { ...headers(), Accept: 'application/json', 'Content-Type': 'application/json' },
-      success(response) {
-        if (response.statusCode === 401 && path !== '/api/session') {
-          clearSession()
-          const error = new Error('登录已过期，请重新登录'); error.unauthorized = true; reject(error); return
-        }
-        if (response.statusCode < 200 || response.statusCode >= 300) {
-          reject(new Error(response.data?.error || `网站接口返回 HTTP ${response.statusCode}`)); return
-        }
-        resolve(response.data)
-      }, fail(error) { reject(connectionError(error, '网站接口')) },
-    })
-  })
+  if (!/^https:\/\/[a-zA-Z0-9.-]+$/.test(serviceBaseUrl)) return Promise.reject(new Error('独立静态服务尚未部署'))
+  const current = getSession()
+  return new Promise((resolve, reject) => wx.request({
+    url: serviceBaseUrl + path, method: options.method || 'GET', timeout: 20000,
+    responseType: options.binary ? 'arraybuffer' : 'text',
+    header: { Accept: options.binary ? 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' : 'application/json',
+      ...(current ? { Authorization: `Bearer ${current.token}` } : {}),
+      ...(options.data ? { 'Content-Type': 'application/json' } : {}) },
+    ...(options.data ? { data: options.data } : {}),
+    success(response) {
+      let body = response.data
+      if (!options.binary && typeof body === 'string') {
+        try { body = JSON.parse(body) } catch { return reject(new Error('静态服务返回格式无效，请稍后重试')) }
+      }
+      if (response.statusCode === 401) {
+        if (!options.login) clearSession()
+        const error = new Error(options.login ? (body?.error?.message || '访问口令不正确') : '登录已过期，请重新输入访问口令')
+        error.unauthorized = !options.login; return reject(error)
+      }
+      if (response.statusCode !== 200) return reject(new Error(body?.error?.message || `静态服务返回HTTP ${response.statusCode}`))
+      resolve(body)
+    },
+    fail(error) { reject(new Error('连接失败：' + (error.errMsg || '请检查网络及合法域名设置'))) },
+  }))
 }
-async function login(email, password) {
-  const result = await request('/api/session', { method: 'POST', data: { email, password } })
-  if (typeof result.token !== 'string' || !(result.expiresAt > Date.now())) throw new Error('登录响应无效')
-  session = { token: result.token, expiresAt: result.expiresAt }
+async function login(accessCode) {
+  if (typeof accessCode !== 'string' || !accessCode.trim()) throw new Error('请输入管理员提供的访问口令')
+  const result = await request('/api/session', { method: 'POST', data: { accessCode: accessCode.trim() }, login: true })
+  if (!result?.ok || typeof result.data?.token !== 'string' || !(result.data.expiresAt > Date.now())) throw new Error('登录服务返回格式无效')
+  session = { token: result.data.token, expiresAt: result.data.expiresAt }
   wx.setStorageSync(SESSION_KEY, session)
 }
 function requireLogin() {
   if (getSession()) return true
   wx.reLaunch({ url: '/pages/login/login' }); return false
 }
-module.exports = { apiBase, getSession, clearSession, request, login, requireLogin }
+async function getPlanDocument(scope, reservoirId) {
+  const id = scope === 'all' ? 'all' : scope === 'current' && /^HN_RSV_\d{3}$/.test(reservoirId) ? reservoirId : null
+  if (!id) throw new Error('请选择当前水库或全部水库')
+  const manifest = await request('/data/manifest.json')
+  if (manifest?.pipeline !== 'miniprogram-static-independent-v1') throw new Error('独立静态文件清单无效')
+  const document = manifest.documents?.[id]
+  if (!document || document.path !== `/documents/${id}.docx` || typeof document.fileName !== 'string') throw new Error('该Word方案尚未生成')
+  const content = await request(document.path, { binary: true })
+  if (!content || content.byteLength !== document.bytes) throw new Error('Word下载不完整，请重试')
+  return { fileName: document.fileName, content }
+}
+module.exports = { init, getSession, clearSession, login, requireLogin, getPlanDocument,
+  getOrbits: () => request('/data/orbits.json'), getWeather: () => request('/data/weather.json') }
