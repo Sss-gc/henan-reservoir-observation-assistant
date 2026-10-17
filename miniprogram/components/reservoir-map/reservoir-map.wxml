@@ -1,3 +1,5 @@
-<map id="native-map" class="native-map" longitude="{{longitude}}" latitude="{{latitude}}" scale="{{scale}}" min-scale="4" max-scale="18" markers="{{markers}}" polyline="{{polyline}}" enable-zoom="{{true}}" enable-scroll="{{true}}" show-compass="{{true}}" show-scale="{{true}}" bindmarkertap="onMarkerTap" bindcallouttap="onMarkerTap">
+<view class="map-shell" style="width:100%;height:410rpx;">
+<map id="native-map" class="native-map" style="display:block;width:100%;height:410rpx;" longitude="{{longitude}}" latitude="{{latitude}}" scale="{{scale}}" min-scale="4" max-scale="18" markers="{{markers}}" polyline="{{polyline}}" enable-zoom="{{true}}" enable-scroll="{{true}}" show-compass="{{true}}" show-scale="{{true}}" bindmarkertap="onMarkerTap" bindcallouttap="onMarkerTap">
   <cover-view class="zoom-controls"><cover-view class="zoom-button" bindtap="zoomIn">＋</cover-view><cover-view class="zoom-button" bindtap="zoomOut">−</cover-view></cover-view>
 </map>
+</view>
