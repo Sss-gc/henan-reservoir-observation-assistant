@@ -58,10 +58,10 @@ const data = require('./utils/data.js'), network = require('./utils/network.js')
 function filesIn(dir) { return fs.readdirSync(dir, { withFileTypes: true }).flatMap((e) => e.isDirectory() ? filesIn(path.join(dir, e.name)) : [path.join(dir, e.name)]) }
 async function check(name, action) { await action(); checks++; console.log(`✓ ${name}`) }
 let app
-function definition(relative, kind) {
+function definition(relative, kind, loadModule) {
   let result
   const filename = path.join(mini, relative)
-  vm.runInNewContext(fs.readFileSync(filename, 'utf8'), { require: createRequire(filename), wx, getApp: () => app,
+  vm.runInNewContext(fs.readFileSync(filename, 'utf8'), { require: loadModule || createRequire(filename), wx, getApp: () => app,
     [kind]: (value) => { result = value } }, { filename })
   assert.ok(result); return result
 }
@@ -170,12 +170,20 @@ await check('首页搜索切换、筛选分页、详情与方案复制使用同�
   await detail.onLoad({ id: 'not-found' }); assert.equal(detail.data.notFound, true)
 })
 await check('腾讯地图显示坐标转换正确，原始边界及面积保持不变', () => {
-  const { wgs84ToGcj02 } = require('./utils/map-coordinates.js')
-  const beijing = wgs84ToGcj02(116.397128, 39.916527)
+  // Reproduce the missing-module environment: the map must register without loading another JS module.
+  const value = definition('components/reservoir-map/reservoir-map.js', 'Component', () => { throw new Error('module is not defined') })
+  const fixture = { ...value.methods, data: {},
+    properties: { mapData: { selectedId: 'point', rings: [], markers: [{ id: 'point', name: 'test', longitude: 116.397128, latitude: 39.916527 }] } },
+    setData(values, callback) { Object.assign(this.data, values); if (callback) callback() },
+  }
+  value.lifetimes.ready.call(fixture)
+  const beijing = fixture.data.markers[0]
   assert.ok(Math.abs(beijing.longitude - 116.40337249402477) < 1e-8)
   assert.ok(Math.abs(beijing.latitude - 39.91793074924595) < 1e-8)
-  assert.deepEqual(wgs84ToGcj02(-74, 40), { longitude: -74, latitude: 40 })
-  const value = definition('components/reservoir-map/reservoir-map.js', 'Component')
+  fixture.properties.mapData.markers[0] = { id: 'point', name: 'test', longitude: -74, latitude: 40 }
+  fixture.updateMap()
+  assert.equal(fixture.data.markers[0].longitude, -74); assert.equal(fixture.data.markers[0].latitude, 40)
+  value.lifetimes.detached.call(fixture)
   for (const reservoir of data.getReservoirList()) {
     const source = data.getMapData(reservoir.id), before = JSON.stringify(source)
     const map = { ...value.methods, properties: { mapData: source }, data: {},
