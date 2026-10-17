@@ -78,9 +78,9 @@ Component({
     async loadTiles(tiles) {
       const generation = ++this._generation, tasks = tiles.filter((t) => !t.path)
       this.setData({ error: '', loading: !!tasks.length })
-      let index = 0, error = ''
+      let index = 0, error = '', providerBlocked = false
       const worker = async () => {
-        while (index < tasks.length && this._alive && generation === this._generation) {
+        while (index < tasks.length && !providerBlocked && this._alive && generation === this._generation) {
           const tile = tasks[index++]
           try {
             let entry = this._cache.get(tile.key)
@@ -90,7 +90,11 @@ Component({
             }
             await entry.promise
             if (this._alive && generation === this._generation) this.render(false)
-          } catch (failure) { this._cache.delete(tile.key); error = failure.message }
+          } catch (failure) {
+            this._cache.delete(tile.key)
+            if (!providerBlocked) error = failure.message
+            providerBlocked = providerBlocked || failure.providerBlocked === true
+          }
         }
       }
       await Promise.all(Array.from({ length: Math.min(6, tasks.length) }, worker))

@@ -30,7 +30,14 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
         if (typeof body.msg === 'string') message = body.msg.replaceAll(env.TIANDITU_SERVER_KEY, '[redacted]').slice(0, 120)
       } catch { /* Non-JSON failures are described by status and media type below. */ }
       const contentType = response.headers.get('Content-Type') ?? '未标注'
-      console.warn(JSON.stringify({ event: 'tianditu_tile_error', status: response.status, contentType, upstreamCode }))
+      const eventId = response.headers.get('block-event-id') ?? ''
+      const blockEventId = /^[a-zA-Z0-9-]{1,100}$/.test(eventId) ? eventId : ''
+      const providerBlocked = response.status === 418 && !!blockEventId
+      console.warn(JSON.stringify({ event: 'tianditu_tile_error', status: response.status, contentType, upstreamCode, blockEventId }))
+      if (providerBlocked) return Response.json({
+        error: `天地图安全防护拦截（HTTP 418），需联系天地图核查。事件编号：${blockEventId}`,
+        providerBlocked: true, blockEventId,
+      }, { status: 502 })
       return Response.json({ error: `天地图响应异常（HTTP ${response.status}${upstreamCode ? `，错误码 ${upstreamCode}` : ''}）${message || `：未收到有效图片，类型 ${contentType}`}` }, { status: 502 })
     }
     return new Response(bytes, { headers: { 'Content-Type': type,

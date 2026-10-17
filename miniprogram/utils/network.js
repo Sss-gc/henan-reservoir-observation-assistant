@@ -52,13 +52,16 @@ function downloadTile(layer, z, x, y) {
         else {
           if (response.statusCode === 401) clearSession()
           let message = response.statusCode === 401 ? '登录已过期，请重新登录' : response.statusCode === 503 ? '天地图服务端key尚未配置' : `天地图接口返回 HTTP ${response.statusCode}`
+          let providerBlocked = false
           if (response.tempFilePath) {
             try {
               const body = JSON.parse(wx.getFileSystemManager().readFileSync(response.tempFilePath, 'utf8'))
               if (typeof body.error === 'string') message = body.error
+              providerBlocked = body.providerBlocked === true
             } catch { /* Keep the HTTP status when the error body is unavailable. */ }
           }
-          reject(new Error(message))
+          const error = new Error(message); error.providerBlocked = providerBlocked
+          reject(error)
         }
       }, fail(error) { reject(connectionError(error, '天地图')) },
     })

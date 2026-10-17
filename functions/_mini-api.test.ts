@@ -83,4 +83,15 @@ describe('Tianditu tile route', () => {
     expect(response.status).toBe(502); expect(body.error).toContain('301012')
     expect(body.error).toContain('权限类型错误'); expect(body.error).not.toContain('test-map-key')
   })
+  it('reports the provider firewall incident so it can be investigated without returning its HTML', async () => {
+    const blockEventId = 'test-incident-418'
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('<html>CloudWAF blocked request</html>', {
+      status: 418, headers: { 'Content-Type': 'text/html; charset=utf-8', 'block-event-id': blockEventId },
+    })))
+    const response = await run('layer=vec&z=8&x=1&y=1')
+    const body = await response.json() as { error: string, providerBlocked: boolean, blockEventId: string }
+    expect(response.status).toBe(502); expect(body.providerBlocked).toBe(true)
+    expect(body.blockEventId).toBe(blockEventId); expect(body.error).toContain('天地图安全防护拦截')
+    expect(body.error).not.toContain('<html>')
+  })
 })

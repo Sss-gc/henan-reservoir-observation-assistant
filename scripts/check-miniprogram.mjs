@@ -191,6 +191,24 @@ await check('天地图投影无GCJ偏移，地图适配全部库区，缩放和�
   map.touchMove({ touches: [{ x: 130, y: 100 }] }); assert.ok(map._view.longitude < lon)
   map.touchEnd({ touches: [] }); map.overview(); value.lifetimes.detached.call(map)
 })
+await check('天地图安全拦截保留事件编号，并停止本批排队请求', async () => {
+  const download = wx.downloadFile, files = wx.getFileSystemManager
+  let count = 0
+  const message = '天地图安全防护拦截（HTTP 418），事件编号：test-incident-418'
+  wx.getFileSystemManager = () => ({ readFileSync: () => JSON.stringify({ error: message, providerBlocked: true }) })
+  wx.downloadFile = (options) => {
+    count++
+    queueMicrotask(() => options.success({ statusCode: 502, tempFilePath: '/test/error.json' }))
+  }
+  try {
+    const value = definition('components/tianditu-map/tianditu-map.js', 'Component')
+    const map = { ...value.methods, _alive: true, _generation: 0, _cache: new Map(), data: {},
+      setData(values) { Object.assign(this.data, values) }, render() {},
+    }
+    await map.loadTiles(Array.from({ length: 18 }, (_, x) => ({ key: `vec/8/${x}/1`, layer: 'vec', z: 8, x, y: 1 })))
+    assert.equal(count, 6); assert.equal(map.data.error, message); assert.equal(map.data.loading, false)
+  } finally { wx.downloadFile = download; wx.getFileSystemManager = files }
+})
 await check('会话失效清除数据，安装包不再包含示例天气和旧轨道', async () => {
   unauthorized = true
   await assert.rejects(data.refresh(true), /登录已过期/)
