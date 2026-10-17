@@ -43,28 +43,4 @@ function requireLogin() {
   if (getSession()) return true
   wx.reLaunch({ url: '/pages/login/login' }); return false
 }
-function downloadTile(layer, z, x, y) {
-  return new Promise((resolve, reject) => {
-    wx.downloadFile({ url: `${apiBase}/api/map-tile?layer=${layer}&z=${z}&x=${x}&y=${y}`,
-      header: headers(), timeout: 20000,
-      success(response) {
-        if (response.statusCode === 200) resolve(response.tempFilePath)
-        else {
-          if (response.statusCode === 401) clearSession()
-          let message = response.statusCode === 401 ? '登录已过期，请重新登录' : response.statusCode === 503 ? '天地图服务端key尚未配置' : `天地图接口返回 HTTP ${response.statusCode}`
-          let providerBlocked = false
-          if (response.tempFilePath) {
-            try {
-              const body = JSON.parse(wx.getFileSystemManager().readFileSync(response.tempFilePath, 'utf8'))
-              if (typeof body.error === 'string') message = body.error
-              providerBlocked = body.providerBlocked === true
-            } catch { /* Keep the HTTP status when the error body is unavailable. */ }
-          }
-          const error = new Error(message); error.providerBlocked = providerBlocked
-          reject(error)
-        }
-      }, fail(error) { reject(connectionError(error, '天地图')) },
-    })
-  })
-}
-module.exports = { apiBase, getSession, clearSession, request, login, requireLogin, downloadTile }
+module.exports = { apiBase, getSession, clearSession, request, login, requireLogin }

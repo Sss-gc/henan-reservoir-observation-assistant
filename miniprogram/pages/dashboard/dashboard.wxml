@@ -4,7 +4,7 @@
     <view class="brand-mark">◈</view>
   </view>
   <view class="subtitle">让卫星过境与晴好天气在水库相遇</view>
-  <view class="data-banner">{{loading ? '正在同步网站数据…' : '与网站同源：天地图 · 中央气象台 · 卫星轨道预测'}}</view>
+  <view class="data-banner">{{loading ? '正在同步网站数据…' : '天气与过境同源：中央气象台 · 卫星轨道预测'}}</view>
   <view wx:if="{{syncError || meta.orbitError || meta.weatherError}}" class="preview-banner">{{syncError || meta.orbitError || meta.weatherError}}。下拉页面可重新同步。</view>
   <view wx:if="{{meta.orbitStale || meta.weatherStale}}" class="preview-banner">网站数据尚未全部更新至今日，请核验下方轨道生成时间与天气更新时间。</view>
 
@@ -25,9 +25,9 @@
 
   <view class="card reservoir-card">
     <view class="row"><view><view class="section-note">当前水库 · {{selected.city}}</view><view class="reservoir-name">{{selected.name_cn}}</view></view><view class="area"><text>{{selected.area_km2}}</text><view>参考面积 km²</view></view></view>
-    <tianditu-map wx:if="{{!pickerOpen}}" id="reservoir-map" class="reservoir-map" map-data="{{map}}" bind:select="selectMarker"></tianditu-map>
+    <reservoir-map wx:if="{{!pickerOpen}}" id="reservoir-map" class="reservoir-map" map-data="{{map}}" bind:select="selectMarker"></reservoir-map>
     <view class="map-footer">
-      <text class="map-caption muted small">天地图矢量底图与中文注记 · 水面边界轮廓</text>
+      <text class="map-caption muted small">腾讯地图 · 水面边界轮廓</text>
       <view class="map-actions"><button class="text-button" size="mini" bindtap="overviewMap">全部水库</button><button class="text-button" size="mini" bindtap="fitMap">定位当前</button></view>
     </view>
   </view>

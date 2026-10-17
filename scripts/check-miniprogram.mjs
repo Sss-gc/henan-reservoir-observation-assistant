@@ -32,7 +32,11 @@ const wx = {
   setClipboardData: ({ data }) => calls.clipboard.push(data),
   navigateTo: ({ url }) => calls.navigation.push(url), switchTab: ({ url }) => calls.navigation.push(url),
   reLaunch: ({ url }) => calls.navigation.push(url), getWindowInfo: () => ({ pixelRatio: 2 }),
-  getFileSystemManager: () => ({ unlink() {} }),
+  createMapContext: (id, component) => {
+    calls.map.push({ action: 'create', id, component })
+    return { includePoints: (options) => calls.map.push({ action: 'include', ...options }),
+      getScale: ({ success }) => success({ scale: 12 }) }
+  },
   request(options) {
     calls.requests.push(options)
     queueMicrotask(() => {
@@ -47,7 +51,7 @@ const wx = {
       options.success({ statusCode: orbitFailure ? 503 : 200, data: orbitFailure ? { error: 'orbit unavailable' } : sourceOrbit })
     })
   },
-  downloadFile(options) { calls.downloads.push(options); queueMicrotask(() => options.success({ statusCode: 200, tempFilePath: `/test/${calls.downloads.length}.png` })) },
+  downloadFile(options) { calls.downloads.push(options); throw new Error('原生地图不应通过wx.downloadFile下载瓦片') },
 }
 globalThis.wx = wx
 const data = require('./utils/data.js'), network = require('./utils/network.js')
@@ -71,12 +75,12 @@ function page(relative) {
 }
 const event = (dataset) => ({ currentTarget: { dataset } })
 
-await check('5个页面和天地图组件配置、WXML及事件绑定完整', () => {
+await check('5个页面和原生地图组件配置、WXML及事件绑定完整', () => {
   assert.equal(config.pages.length, 5)
   const project = JSON.parse(fs.readFileSync(path.join(mini, 'project.config.json'), 'utf8'))
   assert.match(project.appid, /^wx[a-f0-9]{16}$/); assert.equal(project.setting.urlCheck, true)
   for (const tab of config.tabBar.list) assert.ok(config.pages.includes(tab.pagePath))
-  for (const relative of [...config.pages, 'components/tianditu-map/tianditu-map']) {
+  for (const relative of [...config.pages, 'components/reservoir-map/reservoir-map']) {
     const component = relative.startsWith('components/')
     for (const ext of ['.js', '.json', '.wxml', '.wxss']) assert.ok(fs.existsSync(path.join(mini, relative + ext)))
     JSON.parse(fs.readFileSync(path.join(mini, relative + '.json'), 'utf8'))
@@ -165,49 +169,54 @@ await check('首页搜索切换、筛选分页、详情与方案复制使用同�
   assert.equal(new Set(keys).size, keys.length); assert.doesNotMatch(calls.clipboard.at(-1), /示例|预览/)
   await detail.onLoad({ id: 'not-found' }); assert.equal(detail.data.notFound, true)
 })
-await check('天地图投影无GCJ偏移，地图适配全部库区，缩放和拖动可工作', async () => {
-  const { project, unproject, fit } = require('./utils/map-projection.js')
-  for (const r of data.getReservoirList()) {
-    const p = project(r.lon, r.lat, 11), ll = unproject(p.x, p.y, 11)
-    assert.ok(Math.abs(ll.longitude - r.lon) < 1e-9 && Math.abs(ll.latitude - r.lat) < 1e-9)
-    const points = r.id === 'HN_RSV_024' ? data.getMapData(r.id).rings.flat().map(([longitude, latitude]) => ({ longitude, latitude })) : [r]
-    if (r.id === 'HN_RSV_024') {
-      const view = fit(points, 350, 230), center = project(view.longitude, view.latitude, view.zoom)
-      for (const point of points) { const pixel = project(point.longitude, point.latitude, view.zoom); assert.ok(Math.abs(pixel.x - center.x) < 175 && Math.abs(pixel.y - center.y) < 115) }
+await check('腾讯地图显示坐标转换正确，原始边界及面积保持不变', () => {
+  const { wgs84ToGcj02 } = require('./utils/map-coordinates.js')
+  const beijing = wgs84ToGcj02(116.397128, 39.916527)
+  assert.ok(Math.abs(beijing.longitude - 116.40337249402477) < 1e-8)
+  assert.ok(Math.abs(beijing.latitude - 39.91793074924595) < 1e-8)
+  assert.deepEqual(wgs84ToGcj02(-74, 40), { longitude: -74, latitude: 40 })
+  const value = definition('components/reservoir-map/reservoir-map.js', 'Component')
+  for (const reservoir of data.getReservoirList()) {
+    const source = data.getMapData(reservoir.id), before = JSON.stringify(source)
+    const map = { ...value.methods, properties: { mapData: source }, data: {},
+      setData(values, callback) { Object.assign(this.data, values); if (callback) callback() },
     }
+    value.lifetimes.ready.call(map)
+    assert.equal(JSON.stringify(source), before); assert.equal(data.getReservoir(reservoir.id).area_km2, reservoir.area_km2)
+    assert.equal(map.data.polyline.length, source.rings.length)
+    map.data.polyline.forEach((line, i) => assert.equal(line.points.length, source.rings[i].length))
+    const [sw, ne] = map._currentBounds
+    for (const line of map.data.polyline) for (const p of line.points) {
+      assert.ok(p.longitude >= sw.longitude && p.longitude <= ne.longitude && p.latitude >= sw.latitude && p.latitude <= ne.latitude)
+    }
+    assert.ok(Buffer.byteLength(JSON.stringify(map.data)) < 1024 * 1024, '原生地图setData应低于1MiB')
+    value.lifetimes.detached.call(map)
   }
-  const value = definition('components/tianditu-map/tianditu-map.js', 'Component')
-  const ctx = new Proxy({}, { get: (_, key) => key === 'measureText' ? () => ({ width: 48 }) : () => {} })
-  const canvas = { getContext: () => ctx }
-  const map = { ...value.methods, properties: { mapData: data.getMapData('HN_RSV_024') }, data: { tiles: [], error: '' },
-    setData(values) { Object.assign(this.data, values) }, triggerEvent() {},
-    createSelectorQuery() { return { select() { return this }, fields() { return this }, exec(callback) { callback([{ node: canvas, width: 350, height: 230, left: 0, top: 0 }]) } } },
-  }
-  value.lifetimes.ready.call(map); await new Promise((resolve) => setTimeout(resolve, 30))
-  assert.ok(calls.downloads.some((r) => r.url.includes('layer=vec')) && calls.downloads.some((r) => r.url.includes('layer=cva')))
-  assert.ok(calls.downloads.every((r) => r.header.Authorization && !r.url.includes('tk=')))
-  const before = map._view.zoom; map.zoomIn(); assert.equal(map._view.zoom, before + 1)
-  map.touchStart({ touches: [{ x: 100, y: 100 }] }); const lon = map._view.longitude
-  map.touchMove({ touches: [{ x: 130, y: 100 }] }); assert.ok(map._view.longitude < lon)
-  map.touchEnd({ touches: [] }); map.overview(); value.lifetimes.detached.call(map)
 })
-await check('天地图安全拦截保留事件编号，并停止本批排队请求', async () => {
-  const download = wx.downloadFile, files = wx.getFileSystemManager
-  let count = 0
-  const message = '天地图安全防护拦截（HTTP 418），事件编号：test-incident-418'
-  wx.getFileSystemManager = () => ({ readFileSync: () => JSON.stringify({ error: message, providerBlocked: true }) })
-  wx.downloadFile = (options) => {
-    count++
-    queueMicrotask(() => options.success({ statusCode: 502, tempFilePath: '/test/error.json' }))
+await check('原生地图标记切换、当前/全部视野和缩放工作，不调用瓦片代理或使用Key', () => {
+  const value = definition('components/reservoir-map/reservoir-map.js', 'Component'), events = []
+  const map = { ...value.methods, properties: { mapData: data.getMapData('HN_RSV_024') }, data: {},
+    setData(values, callback) { Object.assign(this.data, values); if (callback) callback() },
+    triggerEvent(name, detail) { events.push({ name, detail }) },
   }
-  try {
-    const value = definition('components/tianditu-map/tianditu-map.js', 'Component')
-    const map = { ...value.methods, _alive: true, _generation: 0, _cache: new Map(), data: {},
-      setData(values) { Object.assign(this.data, values) }, render() {},
-    }
-    await map.loadTiles(Array.from({ length: 18 }, (_, x) => ({ key: `vec/8/${x}/1`, layer: 'vec', z: 8, x, y: 1 })))
-    assert.equal(count, 6); assert.equal(map.data.error, message); assert.equal(map.data.loading, false)
-  } finally { wx.downloadFile = download; wx.getFileSystemManager = files }
+  value.lifetimes.ready.call(map)
+  assert.equal(calls.map.at(-2).id, 'native-map'); assert.equal(calls.map.at(-2).component, map)
+  assert.deepEqual(calls.map.at(-1).points, map._currentBounds)
+  assert.ok(map._currentBounds[0].latitude < 32.39, '丹江口南侧汉江区域应保留')
+  assert.equal(map.data.markers.length, 25); assert.equal(new Set(map.data.markers.map((m) => m.id)).size, 25)
+  assert.equal(map.data.markers.filter((m) => m.callout).length, 1)
+  map.onMarkerTap({ detail: { markerId: 1 } }); assert.equal(events[0].name, 'select'); assert.equal(events[0].detail.reservoirId, 'HN_RSV_001')
+  map.onMarkerTap({ detail: { markerId: 999 } }); assert.equal(events.length, 1)
+  map.overview(); assert.deepEqual(calls.map.at(-1).points, map._allBounds)
+  const [sw, ne] = map._allBounds
+  assert.ok(map.data.markers.every((m) => m.longitude >= sw.longitude && m.longitude <= ne.longitude && m.latitude >= sw.latitude && m.latitude <= ne.latitude))
+  map.zoomIn(); assert.equal(map.data.scale, 13); map.zoomOut(); assert.equal(map.data.scale, 11)
+  map.properties.mapData = data.getMapData('HN_RSV_001'); map.updateMap()
+  assert.equal(map.data.markers.find((m) => m.callout).id, 1)
+  const template = fs.readFileSync(path.join(mini, 'components/reservoir-map/reservoir-map.wxml'), 'utf8')
+  assert.match(template, /<map\s/); assert.doesNotMatch(template, /subkey|show-location/)
+  assert.equal(calls.downloads.length, 0); assert.ok(calls.requests.every((r) => !r.url.includes('/api/map-tile')))
+  value.lifetimes.detached.call(map)
 })
 await check('会话失效清除数据，安装包不再包含示例天气和旧轨道', async () => {
   unauthorized = true
@@ -216,7 +225,7 @@ await check('会话失效清除数据，安装包不再包含示例天气和旧�
   assert.equal(data.getWeather('HN_RSV_001'), null)
   for (const name of ['data/orbits.js', 'data/meta.js']) assert.equal(fs.existsSync(path.join(mini, name)), false)
   const source = filesIn(mini).filter((f) => /\.(js|wxml)$/.test(f)).map((f) => fs.readFileSync(f, 'utf8')).join('\n')
-  assert.doesNotMatch(source, /preview-sample|示例天气|<map\s|createMapContext|wgs84ToGcj02/)
+  assert.doesNotMatch(source, /preview-sample|示例天气|downloadTile|\/api\/map-tile|TIANDITU_SERVER_KEY/)
   assert.ok(filesIn(mini).reduce((sum, f) => sum + fs.statSync(f).size, 0) < 2 * 1024 * 1024)
 })
 Date.now = originalNow

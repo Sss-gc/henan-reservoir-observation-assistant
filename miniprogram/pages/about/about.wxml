@@ -4,7 +4,7 @@
   <view class="card">
     <view class="section-title">数据来源</view>
     <view class="info"><view class="info-label">水库</view><view>沿用网站25座水库边界及WGS84椭球参考面积，保留丹江口南侧汉江区域。</view></view>
-    <view class="info"><view class="info-label">天地图</view><view>与网站使用相同的矢量底图和中文注记。按Web墨卡托投影绘制原始水库边界，不使用腾讯地图或GCJ-02坐标偏移。</view></view>
+    <view class="info"><view class="info-label">腾讯地图</view><view>小程序采用微信内置腾讯地图，叠加网站的水库边界。网站底图继续使用天地图；天气与卫星过境读取网站同一份真实数据。</view></view>
     <view class="info"><view class="info-label">中央气象台</view><view>读取网站同一份7日昼夜文字预报缓存，后台设置为每天北京时间09:00刷新。单站失败时沿用上次有效缓存，并显示实际更新时间。</view><view class="muted small">天气批次：{{meta.weatherGeneratedAt || '尚未获取'}}</view></view>
     <view class="info"><view class="info-label">卫星过境</view><view>读取网站当前部署的同一份轨道文件，保留原始时刻与耀光计算值。不会把旧日期平移到今天，也不会用内置旧轨道替代接口失败。</view><view class="muted small">生成时间：{{meta.orbitGeneratedAt || '尚未获取'}}</view><view class="muted small">覆盖日期：{{meta.orbitStartDate || '尚未获取'}} — {{meta.orbitEndDate || '尚未获取'}}</view></view>
   </view>
