@@ -1,10 +1,13 @@
+<view wx:if="{{error}}" class="map-status">
+  <text selectable="{{true}}">{{error}}</text>
+  <view class="status-actions"><button class="status-button" size="mini" bindtap="copyError">复制错误信息</button><button class="status-button" size="mini" bindtap="retry">重试</button></view>
+</view>
+<view wx:elif="{{loading}}" class="map-status">正在加载天地图…</view>
 <view class="map-shell">
   <view class="tiles">
     <block wx:for="{{tiles}}" wx:key="key"><image wx:if="{{item.path}}" src="{{item.path}}" class="tile" mode="scaleToFill" style="left:{{item.left}}px;top:{{item.top}}px;z-index:{{item.layer === 'cva' ? 1 : 0}};" /></block>
   </view>
   <canvas type="2d" id="boundary-canvas" class="boundary-canvas" catchtouchstart="touchStart" catchtouchmove="touchMove" catchtouchend="touchEnd" catchtouchcancel="touchCancel"></canvas>
   <view class="zoom-controls"><button class="zoom-button" size="mini" bindtap="zoomIn">＋</button><button class="zoom-button" size="mini" bindtap="zoomOut">−</button></view>
-  <view wx:if="{{error}}" class="map-status" bindtap="retry">{{error}} · 点击重试</view>
-  <view wx:elif="{{loading}}" class="map-status">正在加载天地图…</view>
   <view class="attribution">© 天地图</view>
 </view>

@@ -109,6 +109,7 @@ Component({
       }
     },
     retry() { this.render(true) },
+    copyError() { if (this.data.error) wx.setClipboardData({ data: this.data.error }) },
     point(touch) { return { x: touch.x ?? (touch.clientX - this._rect.left), y: touch.y ?? (touch.clientY - this._rect.top) } },
     touchStart(event) {
       if (!this._view) return
