@@ -1,4 +1,5 @@
 const data = require('../../utils/data')
+const { showTab, hideTab } = require('../../utils/tab-page')
 
 Page({
   data: {
@@ -6,7 +7,7 @@ Page({
     selected: null, keyword: '', pickerOpen: false, weatherDays: [],
     satellite: '全部卫星', satellites: [], recommendations: [], passes: [],
     passTotal: 0, visibleCount: 10, passFilter: '全部', weather: null, weatherPublishedDate: '', loading: false, syncError: '',
-    map: null,
+    map: null, tabActive: false,
   },
   onLoad(options) {
     if (options && data.getReservoir(options.reservoir)) getApp().selectReservoir(options.reservoir)
@@ -17,13 +18,15 @@ Page({
   },
   onUnload() { this._mapReady = false },
   onShow() {
+    showTab(this, 0)
     const id = getApp().globalData.selectedReservoirId
     if (!this.data.selected || this.data.selected.id !== id) this.loadReservoir(id)
     return this.syncData()
   },
+  onHide() { hideTab(this) },
   async syncData(force = false) {
     if (this.data.loading) return
-    this.setData({ loading: true, syncError: '' })
+    this.setData({ loading: force || !data.hasRecentData(), syncError: '' })
     try {
       await data.refresh(force)
       this.setData({ meta: { ...data.meta } })

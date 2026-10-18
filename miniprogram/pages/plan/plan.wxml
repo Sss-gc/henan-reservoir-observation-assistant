@@ -1,4 +1,4 @@
-<view class="page" wx:if="{{selected}}">
+<view class="page tab-page {{tabActive ? 'tab-page-active' : ''}}" wx:if="{{selected}}">
   <view class="eyebrow">OBSERVATION PLAN</view><view class="title plan-title">把好天气排进计划</view>
   <view class="subtitle">按卫星系列整理晴天完整覆盖窗口</view>
   <view class="section-note">轨道生成 {{meta.orbitGeneratedAt || '未获取'}} · 天气批次 {{meta.weatherGeneratedAt || '未获取'}}</view>

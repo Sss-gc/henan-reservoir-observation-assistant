@@ -21,6 +21,7 @@ const originalNow = Date.now
 Date.now = () => fixtureNow
 let checks = 0, weatherFailure = false, orbitFailure = false, unauthorized = false, requestFailure = false
 let writeFailure = false, openFailure = false
+let switchPending = null, holdSwitch = false
 const calls = { requests: [], downloads: [], clipboard: [], navigation: [], storage: new Map(), map: [], files: [], documents: [], modals: [] }
 // All artificial weather lives in this test fixture, never in the mini program.
 const fixtureWeather = Object.fromEntries(sourceReservoirs.features.map(({ properties: p }) => [p.id, {
@@ -45,7 +46,11 @@ const wx = {
   removeStorageSync: (key) => calls.storage.delete(key), stopPullDownRefresh() {}, showToast() {},
   setClipboardData: ({ data }) => calls.clipboard.push(data),
   showModal: (options) => calls.modals.push(options),
-  navigateTo: ({ url }) => calls.navigation.push(url), switchTab: ({ url }) => calls.navigation.push(url),
+  navigateTo: ({ url }) => calls.navigation.push(url), switchTab(options) {
+    calls.navigation.push(options.url)
+    if (holdSwitch) switchPending = options
+    else options.complete?.()
+  },
   reLaunch: ({ url }) => calls.navigation.push(url), getWindowInfo: () => ({ pixelRatio: 2 }),
   createMapContext: (id, component) => {
     calls.map.push({ action: 'create', id, component })
@@ -264,6 +269,54 @@ await check('推荐卡片、过境列表和方案链接传递编码编号时仍�
   for (const options of [{ id: 'not-found' }, { id: '%invalid' }, {}]) {
     await detail.onLoad(options); assert.equal(detail.data.notFound, true)
   }
+})
+await check('按钮底栏同步选中项，避免重复跳转，缓存页面切换不清空内容或闪加载', async () => {
+  assert.equal(config.tabBar.custom, true)
+  let component
+  let currentRoute = config.tabBar.list[0].pagePath
+  const filename = path.join(mini, 'custom-tab-bar/index.js')
+  vm.runInNewContext(fs.readFileSync(filename, 'utf8'), {
+    require: createRequire(filename), wx, Component: (value) => { component = value },
+    getCurrentPages: () => [{ route: currentRoute }],
+  }, { filename })
+  const bar = { ...component.methods, data: JSON.parse(JSON.stringify(component.data)) }
+  bar.setData = (values) => Object.assign(bar.data, values)
+  component.lifetimes.attached.call(bar)
+  assert.equal(bar.data.selected, 0)
+  const before = calls.navigation.length
+  bar.switchTab(event({ index: 0 })); assert.equal(calls.navigation.length, before)
+  holdSwitch = true
+  bar.switchTab(event({ index: 1 })); bar.switchTab(event({ index: 2 }))
+  assert.equal(calls.navigation.length, before + 1)
+  assert.equal(calls.navigation.at(-1), '/pages/plan/plan')
+  switchPending.complete(); holdSwitch = false
+  currentRoute = config.tabBar.list[1].pagePath
+  component.pageLifetimes.show.call(bar)
+  assert.equal(bar.data.selected, 1)
+  holdSwitch = true
+  bar.switchTab(event({ index: 2 })); switchPending.fail(); switchPending.complete(); holdSwitch = false
+  assert.equal(bar.data.selected, 1, '失败时保持当前页选中态')
+  const pages = [page('pages/dashboard/dashboard'), page('pages/plan/plan'), page('pages/about/about')]
+  const requestCount = calls.requests.length
+  for (let index = 0; index < pages.length; index++) {
+    const tab = pages[index]
+    tab.getTabBar = () => bar
+    const showing = tab.onShow()
+    assert.equal(bar.data.selected, index)
+    assert.equal(tab.data.tabActive, true)
+    if (index < 2) {
+      assert.ok(tab.data.selected, '使用缓存时，进入页面立刻有内容')
+      assert.equal(tab.data.loading, false, '有效缓存不闪现加载状态')
+    }
+    await showing
+    tab.onHide(); assert.equal(tab.data.tabActive, false)
+  }
+  assert.equal(calls.requests.length, requestCount, '缓存切页不重复请求网络')
+  const xml = fs.readFileSync(path.join(mini, 'custom-tab-bar/index.wxml'), 'utf8')
+  const doc = new DOMParser().parseFromString(`<root xmlns:wx="https://weixin.qq.com/wxml">${xml}</root>`, 'application/xml')
+  assert.equal(doc.getElementsByTagName('button').length, 1)
+  assert.equal(doc.getElementsByTagName('button')[0].getAttribute('bindtap'), 'switchTab')
+  assert.equal(JSON.parse(fs.readFileSync(path.join(mini, 'custom-tab-bar/index.json'))).component, true)
 })
 await check('当前和全部水库Word写入本机后以docx打开，保存/打开失败均可重试', async () => {
   const plan = page('pages/plan/plan'); await plan.onShow()

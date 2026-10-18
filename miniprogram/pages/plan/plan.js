@@ -1,14 +1,18 @@
 const data = require('../../utils/data')
 const document = require('../../utils/document')
+const { showTab, hideTab } = require('../../utils/tab-page')
 
 Page({
-  data: { meta: data.meta, scope: '当前水库', selected: null, groups: [], count: 0, reservoirCount: 0, loading: false, documentLoading: false, documentError: '' },
+  data: { meta: data.meta, scope: '当前水库', selected: null, groups: [], count: 0, reservoirCount: 0, loading: false, documentLoading: false, documentError: '', tabActive: false },
   async onShow() {
-    this.setData({ loading: true })
+    showTab(this, 1)
+    this.refreshPlan()
+    this.setData({ loading: !data.hasRecentData() })
     try { await data.refresh(); this.refreshPlan() }
     catch (error) { wx.showToast({ title: error.message, icon: 'none' }) }
     finally { this.setData({ loading: false }) }
   },
+  onHide() { hideTab(this) },
   refreshPlan() {
     const selected = data.getReservoirList().find((r) => r.id === getApp().globalData.selectedReservoirId)
     const groups = data.getPlanGroups(this.data.scope === '当前水库' ? selected.id : null)

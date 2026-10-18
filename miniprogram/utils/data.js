@@ -43,9 +43,12 @@ function reset() {
   Object.assign(meta, { orbitGeneratedAt: '', orbitStartDate: '', orbitEndDate: '', weatherGeneratedAt: '',
     orbitError: '', weatherError: '', orbitStale: false, weatherStale: false, loadedAt: 0 })
 }
+function hasRecentData() {
+  return meta.loadedAt > Date.now() - 300000 && !meta.orbitError && !meta.weatherError
+}
 async function refresh(force = false) {
   if (pending) return pending
-  if (!force && meta.loadedAt > Date.now() - 300000 && !meta.orbitError && !meta.weatherError) return meta
+  if (!force && hasRecentData()) return meta
   pending = (async () => {
     const [orbit, weather] = await Promise.allSettled([
       network.getOrbits(), network.getWeather(),
@@ -191,5 +194,5 @@ function getMapData(id) {
   return selected ? { selectedId: id, rings: selected.rings,
     markers: reservoirs.map((r) => ({ id: r.id, longitude: r.lon, latitude: r.lat, name: r.name_cn })) } : null
 }
-module.exports = { meta, refresh, reset, getReservoir, getReservoirList, getWeather, getWeatherCards,
+module.exports = { meta, refresh, reset, hasRecentData, getReservoir, getReservoirList, getWeather, getWeatherCards,
   getPass, getPasses, getBestPasses, getSatelliteOptions, getPlanGroups, buildPlanText, getMapData, buildNativeMapData }

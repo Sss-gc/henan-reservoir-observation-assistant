@@ -1,0 +1,8 @@
+:host { display: block; }
+.tab-bar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 1000; padding: 16rpx 24rpx; padding-bottom: calc(16rpx + constant(safe-area-inset-bottom)); padding-bottom: calc(16rpx + env(safe-area-inset-bottom)); background: #081b26; border-top: 1rpx solid #1c3949; box-shadow: 0 -8rpx 24rpx rgba(0, 0, 0, 0.12); }
+.tab-buttons { display: flex; gap: 14rpx; }
+.tab-button { flex: 1; min-width: 0; margin: 0; padding: 0 8rpx; height: 84rpx; display: flex; align-items: center; justify-content: center; box-sizing: border-box; border: 1rpx solid #234653; border-radius: 22rpx; background: #0c2734; color: #9bb8c6; font-size: 25rpx; font-weight: 500; line-height: 1.4; transition: background-color 180ms ease, border-color 180ms ease, color 180ms ease, transform 120ms ease; }
+.tab-button::after { border: 0; }
+.tab-button.is-active { background: #123c3e; border-color: #2a8f86; color: #5eead4; font-weight: 650; }
+.tab-button-pressed { transform: scale(0.97); }
+@media (prefers-reduced-motion: reduce) { .tab-button { transition: none; } .tab-button-pressed { transform: none; } }
