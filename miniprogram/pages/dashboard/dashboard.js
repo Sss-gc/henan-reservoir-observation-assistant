@@ -1,5 +1,5 @@
 const data = require('../../utils/data')
-const { showTab } = require('../../utils/tab-page')
+const { showTab, prepareTabPage } = require('../../utils/tab-page')
 
 Page({
   data: {
@@ -10,6 +10,7 @@ Page({
     map: null,
   },
   onLoad(options) {
+    prepareTabPage()
     if (options && data.getReservoir(options.reservoir)) getApp().selectReservoir(options.reservoir)
   },
   onReady() {

@@ -1,9 +1,10 @@
 const data = require('../../utils/data')
 const document = require('../../utils/document')
-const { showTab } = require('../../utils/tab-page')
+const { showTab, prepareTabPage } = require('../../utils/tab-page')
 
 Page({
   data: { meta: data.meta, scope: '当前水库', selected: null, groups: [], count: 0, reservoirCount: 0, loading: false, documentLoading: false, documentError: '' },
+  onLoad() { prepareTabPage() },
   async onShow() {
     showTab(this, 1)
     if (this.data.selected?.id !== getApp().globalData.selectedReservoirId || this._renderedAt !== data.meta.loadedAt) this.refreshPlan()

@@ -22,7 +22,7 @@ Date.now = () => fixtureNow
 let checks = 0, weatherFailure = false, orbitFailure = false, unauthorized = false, requestFailure = false
 let writeFailure = false, openFailure = false
 let switchPending = null, holdSwitch = false
-const calls = { requests: [], downloads: [], clipboard: [], navigation: [], storage: new Map(), map: [], files: [], documents: [], modals: [] }
+const calls = { requests: [], downloads: [], clipboard: [], navigation: [], storage: new Map(), map: [], files: [], documents: [], modals: [], backgrounds: [] }
 // All artificial weather lives in this test fixture, never in the mini program.
 const fixtureWeather = Object.fromEntries(sourceReservoirs.features.map(({ properties: p }) => [p.id, {
   source: '中央气象台',
@@ -46,6 +46,7 @@ const wx = {
   removeStorageSync: (key) => calls.storage.delete(key), stopPullDownRefresh() {}, showToast() {},
   setClipboardData: ({ data }) => calls.clipboard.push(data),
   showModal: (options) => calls.modals.push(options),
+  setBackgroundColor: (options) => calls.backgrounds.push(options),
   navigateTo: ({ url }) => calls.navigation.push(url), switchTab(options) {
     calls.navigation.push(options.url)
     if (holdSwitch) switchPending = options
@@ -304,6 +305,10 @@ await check('按钮底栏同步选中项，避免重复跳转，缓存页面切�
   const requestCount = calls.requests.length
   for (let index = 0; index < pages.length; index++) {
     const tab = pages[index]
+    tab.onLoad({})
+    assert.equal(calls.backgrounds.at(-1).backgroundColor, '#06141d')
+    assert.equal(calls.backgrounds.at(-1).backgroundColorTop, '#06141d')
+    assert.equal(calls.backgrounds.at(-1).backgroundColorBottom, '#06141d')
     tab.getTabBar = () => bar
     const showing = tab.onShow()
     assert.equal(bar.data.selected, index)

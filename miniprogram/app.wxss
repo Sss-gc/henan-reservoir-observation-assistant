@@ -1,8 +1,8 @@
-page { background: #06141d; color: #e6f1f6; font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif; font-size: 28rpx; line-height: 1.6; }
+page { min-height: 100%; background: #06141d; color: #e6f1f6; font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif; font-size: 28rpx; line-height: 1.6; }
 view, text, button, input, scroll-view { box-sizing: border-box; }
 button { margin: 0; padding: 0; font-size: 26rpx; line-height: 1.5; border-radius: 16rpx; }
 button::after { border: 0; }
-.page { padding: 32rpx 28rpx 56rpx; }
+.page { min-height: 100vh; background: #06141d; padding: 32rpx 28rpx 56rpx; }
 .tab-page { padding-bottom: calc(164rpx + constant(safe-area-inset-bottom)); padding-bottom: calc(164rpx + env(safe-area-inset-bottom)); }
 .eyebrow { color: #2dd4bf; font-size: 18rpx; letter-spacing: 4rpx; font-weight: 600; }
 .title { font-size: 44rpx; font-weight: 700; line-height: 1.3; }
