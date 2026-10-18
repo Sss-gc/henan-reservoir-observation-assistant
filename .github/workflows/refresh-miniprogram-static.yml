@@ -2,7 +2,9 @@ name: Refresh independent mini-program static service
 
 on:
   schedule:
-    - cron: '15 1 * * *'
+    # Beijing 09:15, with recovery checks at 09:45 and 10:45.
+    - cron: '15,45 1 * * *'
+    - cron: '45 2 * * *'
   workflow_dispatch:
 
 permissions:
@@ -26,24 +28,35 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
+      - name: Check whether today's independent batch needs publishing
+        id: due
+        run: node scripts/check-mini-static-freshness.mjs
       - uses: pnpm/action-setup@v4
+        if: steps.due.outputs.refresh == 'true'
         with:
           version: '11.19.0'
       - run: pnpm install --frozen-lockfile
+        if: steps.due.outputs.refresh == 'true'
       - uses: actions/setup-python@v5
+        if: steps.due.outputs.refresh == 'true'
         with:
           python-version: '3.12'
           cache: pip
           cache-dependency-path: backend/requirements-orbit.txt
       - run: python -m pip install -r backend/requirements-orbit.txt
+        if: steps.due.outputs.refresh == 'true'
       - name: Independently generate weather, observations and all Word files
+        if: steps.due.outputs.refresh == 'true'
         run: pnpm mini-static:build
       - name: Configure free GitHub Pages hosting
+        if: steps.due.outputs.refresh == 'true'
         uses: actions/configure-pages@v5
       - name: Upload one complete independent static version
+        if: steps.due.outputs.refresh == 'true'
         uses: actions/upload-pages-artifact@v3
         with:
           path: mini-static/dist
       - name: Publish JSON and all Word files to GitHub Pages
+        if: steps.due.outputs.refresh == 'true'
         id: deployment
         uses: actions/deploy-pages@v4
