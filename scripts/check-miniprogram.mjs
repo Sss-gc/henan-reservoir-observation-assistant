@@ -276,10 +276,14 @@ await check('按钮底栏同步选中项，避免重复跳转，缓存页面切�
   let currentRoute = config.tabBar.list[0].pagePath
   const filename = path.join(mini, 'custom-tab-bar/index.js')
   vm.runInNewContext(fs.readFileSync(filename, 'utf8'), {
-    require: createRequire(filename), wx, Component: (value) => { component = value },
+    require: (specifier) => {
+      assert.ok(!specifier.endsWith('.json'), '微信运行时不能通过require加载JSON配置')
+      return createRequire(filename)(specifier)
+    }, wx, Component: (value) => { component = value },
     getCurrentPages: () => [{ route: currentRoute }],
   }, { filename })
   const bar = { ...component.methods, data: JSON.parse(JSON.stringify(component.data)) }
+  assert.deepEqual(bar.data.tabs, config.tabBar.list, '底栏按钮必须与配置中的tab路由一致')
   bar.setData = (values) => Object.assign(bar.data, values)
   component.lifetimes.attached.call(bar)
   assert.equal(bar.data.selected, 0)

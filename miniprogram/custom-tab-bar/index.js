@@ -1,7 +1,12 @@
-const { tabBar } = require('../app.json')
-
 Component({
-  data: { selected: -1, tabs: tabBar.list },
+  data: {
+    selected: -1,
+    tabs: [
+      { pagePath: 'pages/dashboard/dashboard', text: '水库观测' },
+      { pagePath: 'pages/plan/plan', text: '实验方案' },
+      { pagePath: 'pages/about/about', text: '数据说明' },
+    ],
+  },
   lifetimes: { attached() { this.syncSelection() } },
   pageLifetimes: { show() { this.syncSelection() } },
   methods: {
