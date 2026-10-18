@@ -5,7 +5,7 @@ Page({
     meta: data.meta, reservoirs: data.getReservoirList(), filteredReservoirs: [],
     selected: null, keyword: '', pickerOpen: false, weatherDays: [],
     satellite: '全部卫星', satellites: [], recommendations: [], passes: [],
-    passTotal: 0, visibleCount: 10, passFilter: '全部', weather: null, loading: false, syncError: '',
+    passTotal: 0, visibleCount: 10, passFilter: '全部', weather: null, weatherPublishedDate: '', loading: false, syncError: '',
     map: null,
   },
   onLoad(options) {
@@ -36,9 +36,11 @@ Page({
     const selected = data.getReservoirList().find((item) => item.id === id) || data.getReservoirList()[0]
     getApp().selectReservoir(selected.id)
     const map = data.buildNativeMapData(data.getMapData(selected.id))
+    const weather = data.getWeather(selected.id)
     this._markerIds = map.markerIds; this._currentBounds = map.currentBounds; this._allBounds = map.allBounds
     this.setData({
-      selected, weather: data.getWeather(selected.id), weatherDays: data.getWeatherCards(selected.id), satellites: data.getSatelliteOptions(selected.id),
+      selected, weather, weatherPublishedDate: weather?.publishedAt?.slice(0, 10) || '未标注',
+      weatherDays: data.getWeatherCards(selected.id), satellites: data.getSatelliteOptions(selected.id),
       satellite: resetFilters || !data.getSatelliteOptions(selected.id).includes(this.data.satellite) ? '全部卫星' : this.data.satellite,
       passFilter: resetFilters ? '全部' : this.data.passFilter, visibleCount: resetFilters ? 10 : this.data.visibleCount,
       keyword: '', pickerOpen: false,
@@ -80,6 +82,21 @@ Page({
   loadMore() { this.setData({ visibleCount: this.data.visibleCount + 10 }); this.updatePasses() },
   openPass(event) { wx.navigateTo({ url: `/pages/pass/pass?id=${encodeURIComponent(event.currentTarget.dataset.id)}` }) },
   openPlan() { wx.switchTab({ url: '/pages/plan/plan' }) },
+  showWeatherSource() {
+    const weather = this.data.weather
+    if (!weather?.sourceUrl) return
+    wx.showModal({
+      title: `${weather.stationName}站 · 中央气象台`,
+      content: `官方天气预报：\n${weather.sourceUrl}\n\n复制链接后粘贴到浏览器打开。`,
+      confirmText: '复制链接', cancelText: '关闭',
+      success: ({ confirm }) => {
+        if (confirm) wx.setClipboardData({
+          data: weather.sourceUrl,
+          fail: () => wx.showToast({ title: '复制失败，请重试', icon: 'none' }),
+        })
+      },
+    })
+  },
   fitMap() {
     if (this._mapReady && this._currentBounds?.length) this._mapContext.includePoints({ points: this._currentBounds, padding: [24, 24, 24, 24] })
   },

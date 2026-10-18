@@ -28,6 +28,7 @@ THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH RE
 .map-actions .text-button + .text-button { margin-left: 24rpx; }
 .map-actions .map-zoom-button { width: 40rpx; padding: 10rpx 0; font-size: 32rpx; }
 .weather-strip { white-space: nowrap; margin-top: 24rpx; width: 100%; }
+.weather-source-link { display: inline-block; padding: 8rpx 0; color: #5eead4; text-decoration: underline; }
 .weather-day { display: inline-block; width: 138rpx; padding: 20rpx 10rpx; margin-right: 12rpx; border-radius: 16rpx; background: #102c3a; text-align: center; border: 1rpx solid #234353; }
 .weather-day.sunny-day { border-color: #54603b; background: #263025; }
 .weather-date { color: #b6cbd5; font-size: 20rpx; }

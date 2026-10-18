@@ -7,6 +7,7 @@ import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
 import { DOMParser } from '@xmldom/xmldom'
 import ts from 'typescript'
+import { RESERVOIR_STATIONS } from '../weather-worker/src/nmc.ts'
 
 const root = fileURLToPath(new URL('../', import.meta.url)), mini = path.join(root, 'miniprogram')
 const require = createRequire(path.join(mini, 'package.json'))
@@ -20,10 +21,12 @@ const originalNow = Date.now
 Date.now = () => fixtureNow
 let checks = 0, weatherFailure = false, orbitFailure = false, unauthorized = false, requestFailure = false
 let writeFailure = false, openFailure = false
-const calls = { requests: [], downloads: [], clipboard: [], navigation: [], storage: new Map(), map: [], files: [], documents: [] }
+const calls = { requests: [], downloads: [], clipboard: [], navigation: [], storage: new Map(), map: [], files: [], documents: [], modals: [] }
 // All artificial weather lives in this test fixture, never in the mini program.
 const fixtureWeather = Object.fromEntries(sourceReservoirs.features.map(({ properties: p }) => [p.id, {
-  source: '中央气象台', sourceUrl: 'https://www.nmc.cn/test-fixture', stationName: p.city,
+  source: '中央气象台',
+  sourceUrl: `https://www.nmc.cn/publish/forecast/AHA/${RESERVOIR_STATIONS.find((s) => s.reservoirId === p.id).slug}.html`,
+  stationName: RESERVOIR_STATIONS.find((s) => s.reservoirId === p.id).stationName,
   publishedAt: `${firstDate}T08:00:00+08:00`, fetchedAt: sourceOrbit.generated_at, cacheStatus: 'cloud',
   days: Array.from({ length: 7 }, (_, i) => ({ date: new Date(Date.parse(firstDate) + i * 86400000).toISOString().slice(0, 10),
     dayCondition: i % 3 === 1 ? '多云' : '晴', nightCondition: '多云' })),
@@ -41,6 +44,7 @@ const wx = {
   getStorageSync: (key) => calls.storage.get(key), setStorageSync: (key, value) => calls.storage.set(key, value),
   removeStorageSync: (key) => calls.storage.delete(key), stopPullDownRefresh() {}, showToast() {},
   setClipboardData: ({ data }) => calls.clipboard.push(data),
+  showModal: (options) => calls.modals.push(options),
   navigateTo: ({ url }) => calls.navigation.push(url), switchTab: ({ url }) => calls.navigation.push(url),
   reLaunch: ({ url }) => calls.navigation.push(url), getWindowInfo: () => ({ pixelRatio: 2 }),
   createMapContext: (id, component) => {
@@ -174,6 +178,25 @@ await check('域名与网络错误直接显示在首页，不要求登录或恢�
     assert.equal(home.data.loading, false); assert.equal(calls.navigation.length, before)
   }
   requestFailure = false; data.reset(); await data.refresh()
+})
+await check('每座水库站名显示并复制对应官方预报链接，关闭弹窗不复制', () => {
+  const home = page('pages/dashboard/dashboard')
+  for (const reservoir of data.getReservoirList()) {
+    home.loadReservoir(reservoir.id)
+    home.showWeatherSource()
+    const modal = calls.modals.at(-1)
+    const expected = fixtureWeather[reservoir.id]
+    assert.equal(modal.title, `${expected.stationName}站 · 中央气象台`)
+    assert.ok(modal.content.includes(expected.sourceUrl))
+    const copied = calls.clipboard.length
+    modal.success({ confirm: false }); assert.equal(calls.clipboard.length, copied)
+    modal.success({ confirm: true }); assert.equal(calls.clipboard.at(-1), expected.sourceUrl)
+    assert.equal(home.data.weather.publishedAt, expected.publishedAt, '保留原始发布日期供数据逻辑使用')
+    assert.equal(home.data.weatherPublishedDate, firstDate)
+  }
+  home.setData({ weather: null })
+  const shown = calls.modals.length
+  home.showWeatherSource(); assert.equal(calls.modals.length, shown)
 })
 await check('真实数据响应与网站推荐一致，无天气不生成晴天窗口', async () => {
   const { buildExperimentRecommendation } = require('./utils/recommendation.js')

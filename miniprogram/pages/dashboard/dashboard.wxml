@@ -6,7 +6,7 @@
   <view class="subtitle">让卫星过境与晴好天气在水库相遇</view>
   <view class="data-banner">{{loading ? '正在获取云端数据…' : '独立数据：中央气象台 · 卫星轨道预测'}}</view>
   <view wx:if="{{syncError || meta.orbitError || meta.weatherError}}" class="preview-banner">{{syncError || meta.orbitError || meta.weatherError}}。下拉页面可重新同步。</view>
-  <view wx:if="{{meta.orbitStale || meta.weatherStale}}" class="preview-banner">云端数据尚未全部更新至今日，请核验下方轨道生成时间与天气更新时间。</view>
+  <view wx:if="{{meta.orbitStale || meta.weatherStale}}" class="preview-banner">云端数据尚未全部更新至今日，下拉页面可重新同步。</view>
 
   <view class="search-box row">
     <text class="search-icon">⌕</text>
@@ -36,8 +36,7 @@
 
   <view class="card weather-card">
     <view class="row"><view class="section-title">7 天天气</view><text class="pill">中央气象台</text></view>
-    <view wx:if="{{weather}}" class="section-note">{{weather.stationName}}站 · 发布 {{weather.publishedAt || '未标注'}}</view>
-    <view wx:if="{{weather}}" class="section-note">缓存更新 {{weather.fetchedAt}}{{weather.cacheStatus === 'cloud-stale-fallback' ? ' · 上次有效缓存' : ''}}</view>
+    <view wx:if="{{weather}}" class="section-note"><text class="weather-source-link" bindtap="showWeatherSource">{{weather.stationName}}站</text><text> · 发布 {{weatherPublishedDate}}</text></view>
     <view wx:if="{{!weatherDays.length}}" class="empty">{{loading ? '正在读取独立数据天气…' : (meta.weatherError || '该水库天气尚未获取，下拉可重试。')}}</view>
     <scroll-view scroll-x="{{true}}" class="weather-strip" enhanced="{{true}}" show-scrollbar="{{false}}">
       <view wx:for="{{weatherDays}}" wx:key="date" class="weather-day {{item.sunny ? 'sunny-day' : ''}}">
@@ -65,7 +64,6 @@
   <view class="card passes-card">
     <view class="row"><view class="section-title">卫星过境窗口</view><text class="muted small">{{passTotal}} 条</text></view>
     <view class="section-note">轨道日期 {{meta.orbitStartDate || '未获取'}} — {{meta.orbitEndDate || '未获取'}}</view>
-    <view class="section-note">生成时间 {{meta.orbitGeneratedAt || '未获取'}}</view>
     <view class="status-filters">
       <view wx:for="{{['全部', '仅晴天', '待预报']}}" wx:key="*this" class="status-filter {{passFilter === item ? 'active' : ''}}" data-name="{{item}}" bindtap="selectPassFilter">{{item}}</view>
     </view>
