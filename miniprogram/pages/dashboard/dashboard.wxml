@@ -1,4 +1,4 @@
-<view class="page tab-page {{tabActive ? 'tab-page-active' : ''}}" wx:if="{{selected}}">
+<view class="page tab-page" wx:if="{{selected}}">
   <view class="row hero">
     <view><view class="eyebrow">RESERVOIR FIELD LAB</view><view class="title">星地同步实验助手</view></view>
     <view class="brand-mark"><view class="brand-icon"></view></view>

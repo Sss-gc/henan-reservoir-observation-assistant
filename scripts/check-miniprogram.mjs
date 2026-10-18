@@ -307,13 +307,11 @@ await check('按钮底栏同步选中项，避免重复跳转，缓存页面切�
     tab.getTabBar = () => bar
     const showing = tab.onShow()
     assert.equal(bar.data.selected, index)
-    assert.equal(tab.data.tabActive, true)
     if (index < 2) {
       assert.ok(tab.data.selected, '使用缓存时，进入页面立刻有内容')
       assert.equal(tab.data.loading, false, '有效缓存不闪现加载状态')
     }
     await showing
-    tab.onHide(); assert.equal(tab.data.tabActive, false)
   }
   assert.equal(calls.requests.length, requestCount, '缓存切页不重复请求网络')
   const xml = fs.readFileSync(path.join(mini, 'custom-tab-bar/index.wxml'), 'utf8')
@@ -321,6 +319,35 @@ await check('按钮底栏同步选中项，避免重复跳转，缓存页面切�
   assert.equal(doc.getElementsByTagName('button').length, 1)
   assert.equal(doc.getElementsByTagName('button')[0].getAttribute('bindtap'), 'switchTab')
   assert.equal(JSON.parse(fs.readFileSync(path.join(mini, 'custom-tab-bar/index.json'))).component, true)
+})
+await check('反复切页不重绘缓存内容或复位地图，强制刷新保留视野且切库仍定位', async () => {
+  const home = page('pages/dashboard/dashboard'), plan = page('pages/plan/plan')
+  await home.onShow(); home.onReady(); await plan.onShow()
+  home.zoomMapIn()
+  const map = home.data.map
+  const scale = map.scale
+  const moves = calls.map.filter((call) => call.action === 'include').length
+  const requestCount = calls.requests.length
+  const updates = []
+  for (const tab of [home, plan]) {
+    const originalSetData = tab.setData
+    tab.setData = function (values, callback) { updates.push(Object.keys(values)); originalSetData.call(this, values, callback) }
+  }
+  for (let repeat = 0; repeat < 5; repeat++) { await plan.onShow(); await home.onShow() }
+  assert.equal(updates.length, 0, '未变化的缓存切页不应触发页面setData')
+  assert.equal(calls.requests.length, requestCount)
+  assert.equal(home.data.map, map)
+  assert.equal(home.data.map.scale, scale)
+  assert.equal(calls.map.filter((call) => call.action === 'include').length, moves)
+  await home.onPullDownRefresh()
+  assert.equal(calls.requests.length, requestCount + 2, '强制刷新仍读取天气与轨道')
+  assert.equal(home.data.map, map, '数据刷新不重新设置地图标记')
+  assert.equal(home.data.map.scale, scale)
+  assert.equal(calls.map.filter((call) => call.action === 'include').length, moves)
+  const other = home.data.selected.id === 'HN_RSV_024' ? 'HN_RSV_001' : 'HN_RSV_024'
+  home.loadReservoir(other)
+  assert.equal(calls.map.filter((call) => call.action === 'include').length, moves + 1)
+  await plan.onShow(); assert.equal(plan.data.selected.id, other)
 })
 await check('当前和全部水库Word写入本机后以docx打开，保存/打开失败均可重试', async () => {
   const plan = page('pages/plan/plan'); await plan.onShow()

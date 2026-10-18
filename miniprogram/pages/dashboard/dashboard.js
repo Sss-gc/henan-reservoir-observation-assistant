@@ -1,5 +1,5 @@
 const data = require('../../utils/data')
-const { showTab, hideTab } = require('../../utils/tab-page')
+const { showTab } = require('../../utils/tab-page')
 
 Page({
   data: {
@@ -7,7 +7,7 @@ Page({
     selected: null, keyword: '', pickerOpen: false, weatherDays: [],
     satellite: '全部卫星', satellites: [], recommendations: [], passes: [],
     passTotal: 0, visibleCount: 10, passFilter: '全部', weather: null, weatherPublishedDate: '', loading: false, syncError: '',
-    map: null, tabActive: false,
+    map: null,
   },
   onLoad(options) {
     if (options && data.getReservoir(options.reservoir)) getApp().selectReservoir(options.reservoir)
@@ -23,9 +23,15 @@ Page({
     if (!this.data.selected || this.data.selected.id !== id) this.loadReservoir(id)
     return this.syncData()
   },
-  onHide() { hideTab(this) },
   async syncData(force = false) {
     if (this.data.loading) return
+    if (!force && data.hasRecentData()) {
+      if (this._renderedAt !== data.meta.loadedAt) {
+        this.setData({ meta: { ...data.meta } })
+        this.loadReservoir(this.data.selected.id, false)
+      }
+      return
+    }
     this.setData({ loading: force || !data.hasRecentData(), syncError: '' })
     try {
       await data.refresh(force)
@@ -38,17 +44,21 @@ Page({
   loadReservoir(id, resetFilters = true) {
     const selected = data.getReservoirList().find((item) => item.id === id) || data.getReservoirList()[0]
     getApp().selectReservoir(selected.id)
-    const map = data.buildNativeMapData(data.getMapData(selected.id))
+    const mapChanged = !this.data.map || this.data.selected?.id !== selected.id
+    const map = mapChanged ? data.buildNativeMapData(data.getMapData(selected.id)) : null
     const weather = data.getWeather(selected.id)
-    this._markerIds = map.markerIds; this._currentBounds = map.currentBounds; this._allBounds = map.allBounds
+    if (map) {
+      this._markerIds = map.markerIds; this._currentBounds = map.currentBounds; this._allBounds = map.allBounds
+    }
+    this._renderedAt = data.meta.loadedAt
     this.setData({
       selected, weather, weatherPublishedDate: weather?.publishedAt?.slice(0, 10) || '未标注',
       weatherDays: data.getWeatherCards(selected.id), satellites: data.getSatelliteOptions(selected.id),
       satellite: resetFilters || !data.getSatelliteOptions(selected.id).includes(this.data.satellite) ? '全部卫星' : this.data.satellite,
       passFilter: resetFilters ? '全部' : this.data.passFilter, visibleCount: resetFilters ? 10 : this.data.visibleCount,
       keyword: '', pickerOpen: false,
-      map: map.view,
-    }, () => this.fitMap())
+      ...(map ? { map: map.view } : {}),
+    }, map ? () => this.fitMap() : undefined)
     this.updatePasses()
   },
   updatePasses() {

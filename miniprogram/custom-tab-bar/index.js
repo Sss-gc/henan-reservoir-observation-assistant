@@ -13,7 +13,8 @@ Component({
     syncSelection() {
       const pages = getCurrentPages()
       const route = pages[pages.length - 1]?.route
-      this.setData({ selected: this.data.tabs.findIndex((tab) => tab.pagePath === route) })
+      const selected = this.data.tabs.findIndex((tab) => tab.pagePath === route)
+      if (selected !== this.data.selected) this.setData({ selected })
     },
     switchTab(event) {
       const index = Number(event.currentTarget.dataset.index)

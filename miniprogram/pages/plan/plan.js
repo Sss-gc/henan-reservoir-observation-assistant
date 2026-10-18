@@ -1,22 +1,23 @@
 const data = require('../../utils/data')
 const document = require('../../utils/document')
-const { showTab, hideTab } = require('../../utils/tab-page')
+const { showTab } = require('../../utils/tab-page')
 
 Page({
-  data: { meta: data.meta, scope: '当前水库', selected: null, groups: [], count: 0, reservoirCount: 0, loading: false, documentLoading: false, documentError: '', tabActive: false },
+  data: { meta: data.meta, scope: '当前水库', selected: null, groups: [], count: 0, reservoirCount: 0, loading: false, documentLoading: false, documentError: '' },
   async onShow() {
     showTab(this, 1)
-    this.refreshPlan()
+    if (this.data.selected?.id !== getApp().globalData.selectedReservoirId || this._renderedAt !== data.meta.loadedAt) this.refreshPlan()
+    if (data.hasRecentData()) return
     this.setData({ loading: !data.hasRecentData() })
     try { await data.refresh(); this.refreshPlan() }
     catch (error) { wx.showToast({ title: error.message, icon: 'none' }) }
     finally { this.setData({ loading: false }) }
   },
-  onHide() { hideTab(this) },
   refreshPlan() {
     const selected = data.getReservoirList().find((r) => r.id === getApp().globalData.selectedReservoirId)
     const groups = data.getPlanGroups(this.data.scope === '当前水库' ? selected.id : null)
     const records = groups.flatMap((group) => group.records)
+    this._renderedAt = data.meta.loadedAt
     this.setData({ meta: { ...data.meta }, selected, groups, count: records.length, reservoirCount: new Set(records.map((p) => p.reservoir_id)).size })
   },
   selectScope(event) { if (this.data.documentLoading) return; this.setData({ scope: event.currentTarget.dataset.scope, documentError: '' }); this.refreshPlan() },
