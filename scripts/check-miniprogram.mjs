@@ -236,6 +236,35 @@ await check('首页搜索切换、筛选分页、详情与方案复制使用同�
   assert.equal(new Set(keys).size, keys.length); assert.doesNotMatch(calls.clipboard.at(-1), /示例|预览/)
   await detail.onLoad({ id: 'not-found' }); assert.equal(detail.data.notFound, true)
 })
+await check('推荐卡片、过境列表和方案链接传递编码编号时仍能打开对应详情', async () => {
+  const home = page('pages/dashboard/dashboard'), plan = page('pages/plan/plan')
+  let checked = 0
+  for (const reservoir of data.getReservoirList()) {
+    home.loadReservoir(reservoir.id)
+    const targets = [home.data.recommendations[0], home.data.passes[0]].filter(Boolean)
+    for (const target of targets) {
+      home.openPass(event({ id: target.id }))
+      const encodedId = calls.navigation.at(-1).split('?id=')[1]
+      assert.equal(decodeURIComponent(encodedId), target.id)
+      const detail = page('pages/pass/pass')
+      await detail.onLoad({ id: encodedId })
+      assert.equal(detail.data.pass?.id, target.id, `编码编号应能打开详情：${target.id}`)
+      assert.equal(detail.data.notFound, false)
+      await detail.onLoad({ id: target.id })
+      assert.equal(detail.data.pass?.id, target.id, '已解码的编号也能打开')
+      checked++
+    }
+  }
+  assert.ok(checked >= 25)
+  const target = data.getPasses('HN_RSV_001')[0]
+  plan.openPass(event({ id: target.id }))
+  const detail = page('pages/pass/pass')
+  await detail.onLoad({ id: calls.navigation.at(-1).split('?id=')[1] })
+  assert.equal(detail.data.pass?.id, target.id)
+  for (const options of [{ id: 'not-found' }, { id: '%invalid' }, {}]) {
+    await detail.onLoad(options); assert.equal(detail.data.notFound, true)
+  }
+})
 await check('当前和全部水库Word写入本机后以docx打开，保存/打开失败均可重试', async () => {
   const plan = page('pages/plan/plan'); await plan.onShow()
   const before = calls.requests.length

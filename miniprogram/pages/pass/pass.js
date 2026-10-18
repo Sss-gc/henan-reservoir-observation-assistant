@@ -3,10 +3,12 @@ const data = require('../../utils/data')
 Page({
   data: { meta: data.meta, pass: null, notFound: false, weather: null, error: '' },
   async onLoad(options) {
-    // WeChat already decodes query-string values before onLoad.
+    // Route values can retain percent encoding; decode once before matching IDs.
+    let id = options?.id || ''
+    try { id = decodeURIComponent(id) } catch { /* Invalid IDs use the normal not-found state. */ }
     try {
       await data.refresh()
-      const pass = data.getPass(options.id)
+      const pass = data.getPass(id)
       this.setData({ meta: { ...data.meta }, pass, notFound: !pass, weather: pass ? data.getWeather(pass.reservoir_id) : null })
     } catch (error) { this.setData({ error: error.message }) }
   },
