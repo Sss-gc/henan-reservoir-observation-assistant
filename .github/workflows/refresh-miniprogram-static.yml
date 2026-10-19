@@ -1,10 +1,19 @@
 name: Refresh independent mini-program static service
 
 on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/refresh-miniprogram-static.yml'
+      - 'scripts/check-mini-static-freshness.mjs'
+      - 'scripts/build-mini-static.mjs'
+      - 'weather-worker/src/nmc.ts'
   schedule:
-    # Beijing 09:15, with recovery checks at 09:45 and 10:45.
-    - cron: '15,45 1 * * *'
-    - cron: '45 2 * * *'
+    # GitHub scheduled runs may be delayed for hours. Start at Beijing 02:17,
+    # then retry through 10:47; fresh batches exit after the lightweight check.
+    - cron: '17 18,20,22 * * *'
+    - cron: '17,47 0-2 * * *'
   workflow_dispatch:
 
 permissions:
