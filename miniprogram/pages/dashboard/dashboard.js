@@ -37,6 +37,7 @@ function createPointPreview(reservoir, requestedSchemeId = 'sync', requestedCoun
 Page({
   data: {
     meta: data.meta, reservoirs: reservoirOptions, filteredReservoirs: [], basins: data.getBasins(), activeBasin: '',
+    basinLegendCollapsed: false,
     selected: null, keyword: '', pickerOpen: false, weatherDays: [],
     satellite: '全部卫星', satellites: [], recommendations: [], passes: [],
     passTotal: 0, visibleCount: 10, passFilter: '全部', weather: null, weatherPublishedDate: '', loading: false, syncError: '',
@@ -257,6 +258,7 @@ Page({
     this.setData({ activeBasin: '' })
     if (this._mapReady && this._allBounds?.length) this._mapContext.includePoints({ points: this._allBounds, padding: [24, 24, 24, 24] })
   },
+  toggleBasinLegend() { this.setData({ basinLegendCollapsed: !this.data.basinLegendCollapsed }) },
   focusBasin(event) {
     const basin = event.currentTarget.dataset.basin
     const points = (this.data.map?.markers || []).filter((marker) => this._markerBasins?.[marker.id] === basin)

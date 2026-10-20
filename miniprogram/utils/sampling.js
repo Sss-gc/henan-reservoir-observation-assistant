@@ -4,11 +4,6 @@ const REFERENCE_COUNTS = Object.fromEntries(Object.entries(referenceLayouts)
   .map(([id, reference]) => [id, reference.points.length]))
 const MAX_POINT_COUNT = 50
 
-const REFERENCE_PREFIXES = {
-  HN_RSV_002: 'LH', HN_RSV_010: 'GX', HN_RSV_012: 'YHK',
-  HN_RSV_016: 'XLD', HN_RSV_018: 'SYH', HN_RSV_020: 'NYS', HN_RSV_024: 'DJK',
-}
-
 const SAMPLING_SCHEMES = [
   { id: 'sync', label: '星地同步', badge: '推荐', description: '参照既有点位的布局与分布规律' },
   { id: 'shore', label: '岸边加密', badge: '候选', description: '河南库区岸边可达候选 · 需现场复核', candidateMode: 'shore-access' },
@@ -121,7 +116,7 @@ function shoreDistanceInGeometry(point, geometry) {
 }
 
 function preferredShoreBuffer(reservoir) {
-  return clamp(Math.sqrt(Math.max(1, reservoir.area_km2 || 1)) / 35, 0.08, 0.55)
+  return clamp(Math.sqrt(Math.max(1, reservoir.area_km2 || 1)) / 35, 0.15, 0.55)
 }
 
 function buildCandidates(reservoir, geometry, count) {
@@ -268,10 +263,6 @@ function getSamplingSchemes(reservoir) {
   return SAMPLING_SCHEMES.map((scheme) => ({ ...scheme, count: schemePointCount(reservoir, scheme.id), fixed: false }))
 }
 
-function samplingPrefix(reservoir) {
-  return REFERENCE_PREFIXES[reservoir.id] || `HN${String(reservoir.id || reservoir.code || '').match(/\d+/)?.[0] || 'RSV'}`
-}
-
 function buildSamplingPlan(reservoir, request) {
   const structuredRequest = request && typeof request === 'object'
   const schemeId = structuredRequest ? (request.schemeId || 'sync') : 'sync'
@@ -292,10 +283,9 @@ function buildSamplingPlan(reservoir, request) {
       return { ...point, name, shoreDistance: shoreDistanceInGeometry(point, geometry) }
     })
     : selectSpreadPoints(candidates.points, count, scheme.candidateMode !== 'shore-access')
-  const prefix = samplingPrefix(reservoir)
   const points = sourcePoints.map((point, index) => ({
     id: index + 1,
-    name: point.name || `${prefix}${String(index + 1).padStart(2, '0')}`,
+    name: String(index + 1).padStart(2, '0'),
     longitude: Number(point.longitude.toFixed(8)), latitude: Number(point.latitude.toFixed(8)),
     shoreDistanceKm: point.shoreDistance,
   }))
@@ -308,7 +298,7 @@ function buildSamplingPlan(reservoir, request) {
     samplingScope: reservoir.sampling_scope || '河南省境内库区',
     samplingAreaKm2: reservoir.area_km2, fullAreaKm2: reservoir.full_area_km2 || reservoir.area_km2,
     scopeRetainedPct: reservoir.scope_retained_pct || 100,
-    count: points.length, prefix, points,
+    count: points.length, prefix: '', points,
     routeDistanceKm: Number(routeDistanceKm.toFixed(1)),
     meanSpacingKm: Number((routeDistanceKm / Math.max(1, distances.length)).toFixed(1)),
     minimumSpacingKm: Number((distances.length ? Math.min(...distances) : 0).toFixed(1)),
@@ -371,7 +361,7 @@ function buildSamplingMap(plan, coordinateConverter) {
       ...center, scale: 11,
       markers: mapPoints.map((point, index) => ({
         id: index + 1, ...point, iconPath: '/assets/marker-selected.png', width: 24, height: 30,
-        label: { content: plan.points[index].name.match(/\d+$/)?.[0].replace(/^0+(?=\d)/, '') || String(index + 1),
+        label: { content: plan.points[index].name,
           padding: 3, fontSize: 9, color: '#06141d', bgColor: '#88c0d0', borderRadius: 7, anchorX: -5, anchorY: -33 },
       })),
       polyline: mapPoints.length > 1 ? [{ points: mapPoints, color: '#BF616ACC', width: 3, dottedLine: true }] : [],

@@ -69,7 +69,7 @@ const weather = { source: snapshot.source, generatedAt: snapshot.generatedAt, pi
 const generatedAt = new Date()
 const manifest = { schemaVersion: 'miniprogram-static-v1', pipeline: 'miniprogram-static-independent-v1',
   generatedAt: generatedAt.toISOString(), orbitGeneratedAt: orbits.generated_at, weatherGeneratedAt: weather.generatedAt, documents: {} }
-const { createAllReservoirReportBlob, allReservoirReportFileName } = require(path.join(renderer, 'all-reservoir-report.js'))
+const { createAllReservoirReportBlob, allReservoirReportFileName, reportReservoirName } = require(path.join(renderer, 'all-reservoir-report.js'))
 const { observationPlanFileName } = require(path.join(renderer, 'document.js'))
 await fs.mkdir(path.join(output, 'data'), { recursive: true })
 await fs.mkdir(path.join(output, 'documents'), { recursive: true })
@@ -80,7 +80,7 @@ for (const selected of [reservoirs, ...reservoirs.map((reservoir) => [reservoir]
   const items = orbits.items.filter((item) => ids.has(item.reservoir_id))
   const blob = await createAllReservoirReportBlob({ reservoirs: selected,
     orbitPayload: { ...orbits, items, item_count: items.length }, weatherByReservoir: weather.items, generatedAt,
-    ...(single ? { reportTitle: `${selected[0].name_cn}未来7天晴天实验方案` } : {}),
+    ...(single ? { reportTitle: `${reportReservoirName(selected[0])}未来7天晴天实验方案` } : {}),
   })
   const filePath = `/documents/${id}.docx`
   const bytes = Buffer.from(await blob.arrayBuffer())

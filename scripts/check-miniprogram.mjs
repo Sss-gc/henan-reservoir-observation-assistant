@@ -152,7 +152,9 @@ await check('6个页面配置、首页与点位全屏模式直接渲染原生地
       assert.doesNotMatch(template, /搜索水库、城市、流域或编号/)
       assert.match(template, /四大流域/)
       assert.match(template, /bindtap="focusBasin"/)
-      assert.doesNotMatch(template, /picker-basin-dot|class="basin-dot"|● \{\{selected\.basin\}\}/)
+      assert.match(template, /class="basin-dot"[^>]+item\.color/)
+      assert.match(template, /class="current-basin-dot"[^>]+selected\.basinColor/)
+      assert.match(template, /basinLegendCollapsed[^>]+catchtap="toggleBasinLegend"/)
       assert.match(template, /class="sampling-preview-button"[^>]+catchtap="openSamplingPreview"[^>]*>点位设计<\/view>/)
       assert.match(template, /<picker[^>]+range="{{reservoirs}}"[^>]+range-key="pickerLabel"[^>]+bindchange="selectPointReservoir"/)
       assert.match(template, /class="picker-basin-section"/)
@@ -297,6 +299,9 @@ await check('首页搜索切换、筛选分页、详情与方案复制使用同�
   home.selectPassFilter(event({ name: '待预报' })); const id = home.data.passes[0].id
   home.openPass(event({ id })); assert.equal(new URL(calls.navigation.at(-1), 'https://test').searchParams.get('id'), id)
   home.overviewMap(); assert.deepEqual(calls.map.at(-1).points, home._allBounds)
+  assert.equal(home.data.basinLegendCollapsed, false)
+  home.toggleBasinLegend(); assert.equal(home.data.basinLegendCollapsed, true)
+  home.toggleBasinLegend(); assert.equal(home.data.basinLegendCollapsed, false)
   home.focusBasin(event({ basin: '黄河流域' }))
   assert.equal(home.data.activeBasin, '黄河流域')
   assert.equal(calls.map.at(-1).points.length, 5)
@@ -321,35 +326,36 @@ await check('采样点按参考方案或水面边界设计，并导出奥维可�
   for (const [id, count] of Object.entries(referenceCounts)) {
     const reservoir = data.getReservoir(id), plan = sampling.buildSamplingPlan(reservoir)
     assert.equal(plan.count, count); assert.equal(plan.source, 'reference')
-    assert.equal(new Set(plan.points.map((point) => point.name)).size, count)
+    assert.deepEqual(plan.points.map((point) => point.name),
+      Array.from({ length: count }, (_, index) => String(index + 1).padStart(2, '0')))
     assert.ok(plan.points.every((point) => Number.isFinite(point.longitude) && Number.isFinite(point.latitude)))
   }
   const reservoir = data.getReservoir('HN_RSV_010')
   const referencePlan = sampling.buildSamplingPlan(reservoir)
-  assert.equal(referencePlan.points[0].name, 'GX01'); assert.equal(referencePlan.points.at(-1).name, 'GX12')
+  assert.equal(referencePlan.points[0].name, '01'); assert.equal(referencePlan.points.at(-1).name, '12')
   assert.equal(referencePlan.points[0].longitude, 111.2791872, 'KML应保留原始经度而不是腾讯地图偏移坐标')
   assert.equal(referencePlan.referenceBasis, '用户提供的 GX.kml 点位')
   assert.equal(referencePlan.routeDistanceKm, 12.2)
   const luhunPlan = sampling.buildSamplingPlan(data.getReservoir('HN_RSV_002'))
   assert.equal(luhunPlan.referenceYear, 2024); assert.equal(luhunPlan.referenceBasis, '2024-10-23 实测点位')
   assert.deepEqual([luhunPlan.points[0].name, luhunPlan.points[0].longitude, luhunPlan.points[0].latitude],
-    ['LH01', 112.16594722, 34.19828611])
+    ['01', 112.16594722, 34.19828611])
   assert.deepEqual([luhunPlan.points.at(-1).name, luhunPlan.points.at(-1).longitude, luhunPlan.points.at(-1).latitude],
-    ['LH14', 112.12732778, 34.14041111])
+    ['14', 112.12732778, 34.14041111])
   const danjiangkouPlan = sampling.buildSamplingPlan(data.getReservoir('HN_RSV_024'))
   assert.equal(danjiangkouPlan.referenceYear, 2023)
   assert.equal(danjiangkouPlan.referenceBasis, '2023-10-30/31 实测点位')
   assert.deepEqual([danjiangkouPlan.points[0].name, danjiangkouPlan.points[0].longitude, danjiangkouPlan.points[0].latitude],
-    ['DJK5', 111.59593333, 32.69243056])
+    ['01', 111.59593333, 32.69243056])
   assert.deepEqual([danjiangkouPlan.points.at(-1).name, danjiangkouPlan.points.at(-1).longitude,
-    danjiangkouPlan.points.at(-1).latitude], ['DJK43', 111.4276425, 32.94458444])
+    danjiangkouPlan.points.at(-1).latitude], ['39', 111.4276425, 32.94458444])
   const danjiangkouMap = sampling.buildSamplingMap(danjiangkouPlan, data.wgs84ToGcj02)
-  assert.equal(danjiangkouMap.view.markers[0].label.content, '5')
-  assert.equal(danjiangkouMap.view.markers.at(-1).label.content, '43')
+  assert.equal(danjiangkouMap.view.markers[0].label.content, '01')
+  assert.equal(danjiangkouMap.view.markers.at(-1).label.content, '39')
   const danjiangkouKml = sampling.buildOviKml(data.getReservoir('HN_RSV_024'), danjiangkouPlan)
   assert.equal((danjiangkouKml.match(/<Placemark>/g) || []).length, 39)
-  assert.match(danjiangkouKml, /<name>DJK5<\/name>/)
-  assert.match(danjiangkouKml, /<name>DJK43<\/name>/)
+  assert.match(danjiangkouKml, /<name>01<\/name>/)
+  assert.match(danjiangkouKml, /<name>39<\/name>/)
   assert.match(danjiangkouKml, /河南库区/)
   const nianyushanPlan = sampling.buildSamplingPlan(data.getReservoir('HN_RSV_020'))
   assert.equal(nianyushanPlan.referenceBasis, '用户提供的 NYS-采样点.kml 点位')
@@ -358,6 +364,11 @@ await check('采样点按参考方案或水面边界设计，并导出奥维可�
   assert.deepEqual([nianyushanPlan.points.at(-1).name, nianyushanPlan.points.at(-1).longitude,
     nianyushanPlan.points.at(-1).latitude], ['16', 115.3013965, 31.79538795])
   assert.equal(sampling.MAX_POINT_COUNT, 50)
+  const panshitouPlan = sampling.buildSamplingPlan(data.getReservoir('HN_RSV_007'), { schemeId: 'sync', count: 15 })
+  assert.equal(panshitouPlan.targetShorelineBufferM, 150)
+  assert.ok(panshitouPlan.minimumShoreDistanceM >= 150, '盘石头自动点位不应贴近岸线')
+  assert.deepEqual(panshitouPlan.points.map((point) => point.name),
+    Array.from({ length: 15 }, (_, index) => String(index + 1).padStart(2, '0')))
   const generated = sampling.buildSamplingPlan(reservoir, 13)
   assert.equal(generated.source, 'generated'); assert.equal(generated.count, 13)
   const syncPlan = sampling.buildSamplingPlan(reservoir, { schemeId: 'sync' })
@@ -376,6 +387,12 @@ await check('采样点按参考方案或水面边界设计，并导出奥维可�
       if (plan.source !== 'reference' || full.scope_retained_pct < 99.95) {
         assert.ok(plan.points.every((point) => sampling.pointInGeometry(
           geometry.project([point.longitude, point.latitude]), geometry)), `${item.id} ${schemeId}存在河南库区外点位`)
+      }
+      assert.deepEqual(plan.points.map((point) => point.name),
+        Array.from({ length: plan.count }, (_, index) => String(index + 1).padStart(2, '0')))
+      if (plan.source === 'generated') {
+        assert.ok(plan.points.every((point) => point.shoreDistanceKm * 1000 + 1 >= plan.shorelineBufferM),
+          `${item.id} 自动点位未满足自适应离岸距离`)
       }
       if (schemeId === 'shore') {
         const candidates = new Set(full.shore_candidates.map(([longitude, latitude]) => `${longitude},${latitude}`))

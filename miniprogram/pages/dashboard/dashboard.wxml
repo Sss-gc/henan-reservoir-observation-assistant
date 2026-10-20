@@ -8,7 +8,7 @@
         <view class="point-scheme-count">{{item.count}} 点</view>
       </view>
     </scroll-view>
-    <view class="point-scheme-summary"><text>{{pointPlan.schemeDescription}}</text><text wx:if="{{pointPlan.source === 'generated'}}"> · 自适应离岸 {{pointPlan.shorelineBufferM}} m</text><text wx:elif="{{pointPlan.source === 'reference'}}"> · 保留原点号与顺序</text></view>
+    <view class="point-scheme-summary"><text>{{pointPlan.schemeDescription}}</text><text wx:if="{{pointPlan.source === 'generated'}}"> · 自适应离岸 {{pointPlan.shorelineBufferM}} m</text><text wx:elif="{{pointPlan.source === 'reference'}}"> · 保留原坐标与顺序</text></view>
     <view wx:if="{{pointPlan.accessVerificationRequired}}" class="point-buffer-warning">这些点仅是沿真实岸线生成的岸边可达候选；道路、坡岸、围栏及管制条件仍须现场复核。</view>
   </view>
   <map id="sampling-full-map" class="point-fullscreen-map" longitude="{{pointMap.longitude}}" latitude="{{pointMap.latitude}}" scale="{{pointMap.scale}}" min-scale="5" max-scale="19" markers="{{pointMap.markers}}" polyline="{{pointMap.polyline}}" enable-zoom="{{true}}" enable-scroll="{{true}}" enable-rotate="{{false}}" show-compass="{{false}}" show-scale="{{true}}"></map>
@@ -35,9 +35,9 @@
     <view class="picker-summary muted small">共 {{filteredReservoirs.length}} 座水库</view>
     <scroll-view scroll-y="{{true}}" class="reservoir-list">
       <block wx:for="{{filteredReservoirs}}" wx:key="id">
-        <view wx:if="{{item.showBasinHeader}}" class="picker-basin-section"><text>{{item.basin}}</text><text class="picker-basin-count">{{item.basinResultCount}}座</text></view>
+        <view wx:if="{{item.showBasinHeader}}" class="picker-basin-section"><view class="picker-basin-dot" style="background: {{item.basinColor}};"></view><text>{{item.basin}}</text><text class="picker-basin-count">{{item.basinResultCount}}座</text></view>
         <view class="reservoir-option row {{selected.id === item.id ? 'selected-option' : ''}}" data-id="{{item.id}}" bindtap="selectReservoir" hover-class="interactive-pressed" hover-stay-time="80">
-          <view class="reservoir-option-main"><view class="reservoir-option-title"><text>{{item.name_cn}}</text><text class="basin-badge">{{item.basin}}</text></view><view class="muted small">{{item.city}} · {{item.area_km2}} km²</view></view><text class="accent">{{selected.id === item.id ? '已选' : '›'}}</text>
+          <view class="reservoir-option-main"><view class="reservoir-option-title"><text>{{item.name_cn}}</text><text class="basin-badge" style="border-color: {{item.basinColor}}; color: {{item.basinColor}};">{{item.basin}}</text></view><view class="muted small">{{item.city}} · {{item.area_km2}} km²</view></view><text class="accent">{{selected.id === item.id ? '已选' : '›'}}</text>
         </view>
       </block>
       <view wx:if="{{!filteredReservoirs.length}}" class="empty">没有找到匹配的水库</view>
@@ -45,13 +45,16 @@
   </view>
 
   <view class="card reservoir-card">
-    <view class="reservoir-summary"><view class="reservoir-heading"><view class="section-note reservoir-location">当前水库 · {{selected.city}}</view><view class="reservoir-name-line"><view class="reservoir-name">{{selected.name_cn}}</view><view class="current-basin">{{selected.basin}}</view></view></view><view class="sampling-preview-button" role="button" aria-label="打开点位设计" catchtap="openSamplingPreview" hover-class="interactive-pressed" hover-stay-time="80">点位设计</view><view class="area"><text>{{selected.area_km2}}</text><view>河南库区 km²</view></view></view>
+    <view class="reservoir-summary"><view class="reservoir-heading"><view class="section-note reservoir-location">当前水库 · {{selected.city}}</view><view class="reservoir-name-line"><view class="reservoir-name">{{selected.name_cn}}</view><view class="current-basin"><view class="current-basin-dot" style="background: {{selected.basinColor}};"></view><text>{{selected.basin}}</text></view></view></view><view class="sampling-preview-button" role="button" aria-label="打开点位设计" catchtap="openSamplingPreview" hover-class="interactive-pressed" hover-stay-time="80">点位设计</view><view class="area"><text>{{selected.area_km2}}</text><view>河南库区 km²</view></view></view>
     <view hidden="{{pickerOpen}}" class="reservoir-map" style="width:100%;height:470rpx;">
       <map id="reservoir-map" class="native-map" style="display:block;width:100%;height:470rpx;" longitude="{{map.longitude}}" latitude="{{map.latitude}}" scale="{{map.scale}}" min-scale="4" max-scale="18" markers="{{map.markers}}" enable-zoom="{{true}}" enable-scroll="{{true}}" show-compass="{{true}}" show-scale="{{true}}" bindmarkertap="selectMarker" bindcallouttap="selectMarker">
-        <cover-view class="basin-map-legend">
-          <cover-view class="basin-legend-title">四大流域</cover-view>
-          <cover-view wx:for="{{basins}}" wx:key="name" class="basin-legend-item {{activeBasin === item.name ? 'active' : ''}}" data-basin="{{item.name}}" bindtap="focusBasin">
-            <cover-view class="basin-legend-name">{{item.name}} · {{item.count}}</cover-view>
+        <cover-view class="basin-map-legend {{basinLegendCollapsed ? 'collapsed' : ''}}">
+          <cover-view wx:if="{{basinLegendCollapsed}}" class="basin-legend-collapsed" catchtap="toggleBasinLegend" role="button" aria-label="展开四大流域图例"><cover-view>流域</cover-view><cover-view class="basin-legend-toggle-icon">展开</cover-view></cover-view>
+          <cover-view wx:else="{{true}}" class="basin-legend-expanded">
+            <cover-view class="basin-legend-header"><cover-view class="basin-legend-title">四大流域</cover-view><cover-view class="basin-legend-toggle" catchtap="toggleBasinLegend" role="button" aria-label="收起四大流域图例">收起</cover-view></cover-view>
+            <cover-view wx:for="{{basins}}" wx:key="name" class="basin-legend-item {{activeBasin === item.name ? 'active' : ''}}" data-basin="{{item.name}}" bindtap="focusBasin">
+              <cover-view class="basin-dot" style="background: {{item.color}};"></cover-view><cover-view class="basin-legend-name">{{item.name}} · {{item.count}}</cover-view>
+            </cover-view>
           </cover-view>
         </cover-view>
       </map>
