@@ -6,12 +6,12 @@
   <view wx:if="{{meta.orbitStale || meta.weatherStale}}" class="preview-banner">云端数据尚未全部更新至今日，请核验来源时间。</view>
   <view class="scope-switch">
     <view class="scope {{scope === '当前水库' ? 'active' : ''}}" data-scope="当前水库" bindtap="selectScope" hover-class="interactive-pressed" hover-stay-time="80">当前水库</view>
-    <view class="scope {{scope === '全部水库' ? 'active' : ''}}" data-scope="全部水库" bindtap="selectScope" hover-class="interactive-pressed" hover-stay-time="80">全部 {{totalReservoirCount}} 座水库</view>
+    <view class="scope {{scope === '全部水库' ? 'active' : ''}}" data-scope="全部水库" bindtap="selectScope" hover-class="interactive-pressed" hover-stay-time="80">7天内满足条件 · {{qualifyingReservoirCount}} 座</view>
   </view>
   <view class="card summary-card">
-    <view class="summary-label">{{scope === '当前水库' ? selected.city : '河南省 · 全部水库'}}</view>
+    <view class="summary-label">{{scope === '当前水库' ? selected.city : '河南省 · 7天内满足条件的水库'}}</view>
     <view class="row"><view class="summary-title">{{scope === '当前水库' ? selected.name_cn : '河南省水库实验方案'}}</view><text class="pill">晴天方案</text></view>
-    <view class="summary-metrics"><view><text>{{count}}</text><view>晴天窗口</view></view><view><text>{{reservoirCount}}</text><view>水库总数</view></view><view><text>7</text><view>预报天数</view></view></view>
+    <view class="summary-metrics"><view><text>{{count}}</text><view>晴天窗口</view></view><view><text>{{reservoirCount}}</text><view>满足条件水库</view></view><view><text>7</text><view>预报天数</view></view></view>
     <button class="primary" loading="{{documentLoading}}" disabled="{{loading || documentLoading}}" bindtap="downloadWord">{{documentLoading ? '正在下载 Word…' : '下载 Word 方案'}}</button>
     <view wx:if="{{documentError}}" class="document-error">{{documentError}}</view>
     <view class="section-note copy-note">打开文档后，可从右上角菜单保存或转发</view>

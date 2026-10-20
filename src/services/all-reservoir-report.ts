@@ -205,7 +205,7 @@ export async function createAllReservoirReportBlob(data: AllReservoirReportData)
   const coveredReservoirs = new Set(records.map((item) => item.reservoir.id)).size
   paragraph(body, data.reportTitle ?? '河南省水库未来7天晴天实验方案简报', { bold: true, size: 34, color: '0F766E', after: 160 })
   paragraph(body, `生成时间：${timestamp(data.generatedAt ?? new Date())}（北京时间）`, { size: 19, color: '64748B', after: 80 })
-  paragraph(body, `按卫星过境日期匹配当天白天天气，仅保留“晴”的实验窗口。共形成 ${coveredReservoirs} 座水库、${records.length} 条晴天完整覆盖记录。`, { size: 20, after: 160 })
+  paragraph(body, `按卫星过境日期匹配当天白天天气，仅保留“晴”的实验窗口。未来7天内共有 ${coveredReservoirs} 座水库满足条件，共形成 ${records.length} 条晴天完整覆盖记录。`, { size: 20, after: 160 })
 
   for (const group of FAMILY_ORDER) {
     const groupRecords = records.filter((item) => item.family === group)

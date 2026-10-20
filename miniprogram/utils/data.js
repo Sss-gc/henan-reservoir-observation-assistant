@@ -146,12 +146,15 @@ function getPlanGroups(id) {
       .sort((a, b) => a.time_utc.localeCompare(b.time_utc) || a.reservoir_id.localeCompare(b.reservoir_id)) }))
 }
 function buildPlanText(id) {
-  const lines = [`${id ? getReservoir(id).name_cn : `全部${reservoirs.length}座水库`} · 晴天实验方案`,
+  const groups = getPlanGroups(id)
+  const records = groups.flatMap((group) => group.records)
+  const qualifyingReservoirCount = new Set(records.map((record) => record.reservoir_id)).size
+  const lines = [`${id ? getReservoir(id).name_cn : `未来7天内${qualifyingReservoirCount}座水库满足条件`} · 晴天实验方案`,
     `轨道生成时间：${meta.orbitGeneratedAt || '未获取'}`, `天气来源：中央气象台；独立数据批次：${meta.weatherGeneratedAt || '未获取'}`,
     meta.orbitStale ? '提示：云端轨道不是今日更新，请核验数据时间。' : '',
     meta.weatherStale ? '提示：部分天气为旧缓存，请核验各站更新时间。' : '',
     meta.orbitError, meta.weatherError].filter(Boolean)
-  for (const group of getPlanGroups(id)) {
+  for (const group of groups) {
     lines.push('', `${group.name} 系列`)
     if (!group.records.length) lines.push('暂无符合条件的晴天完整覆盖窗口。')
     for (const p of group.records) lines.push(`${p.date} ${p.time}（北京时间）｜${p.reservoirName}｜${p.satellite}｜白天晴｜耀光${p.glintLabel} ${p.glintAngle}°`)

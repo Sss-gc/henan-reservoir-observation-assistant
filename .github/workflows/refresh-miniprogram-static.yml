@@ -8,6 +8,10 @@ on:
       - '.github/workflows/refresh-miniprogram-static.yml'
       - 'scripts/check-mini-static-freshness.mjs'
       - 'scripts/build-mini-static.mjs'
+      - 'src/services/all-reservoir-report.ts'
+      - 'src/services/document.ts'
+      - 'src/assets/observation-plan-template.docx'
+      - 'public/data/reservoirs.geojson'
       - 'weather-worker/src/nmc.ts'
   schedule:
     # NMC publishes the morning forecast at about Beijing 08:00. Start at 08:10,

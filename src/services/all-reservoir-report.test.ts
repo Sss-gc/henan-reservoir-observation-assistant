@@ -68,7 +68,8 @@ describe('all-reservoir seven-day report', () => {
   })
 
   it('creates a concise docx with all four family sections and requested columns', async () => {
-    const blob = await createAllReservoirReportBlob(data)
+    const reportData = { ...data, reservoirs: [reservoir, { ...reservoir, id: 'r2', name_cn: '无方案水库' }] }
+    const blob = await createAllReservoirReportBlob(reportData)
     const zip = await JSZip.loadAsync(await blob.arrayBuffer())
     const xml = await zip.file('word/document.xml')!.async('string')
     expect(blob.type).toBe('application/vnd.openxmlformats-officedocument.wordprocessingml.document')
@@ -81,6 +82,7 @@ describe('all-reservoir seven-day report', () => {
     expect(xml).toContain('w:hAnsi="Times New Roman"')
     expect(xml).toContain('测试水库（淮河流域）')
     expect(xml).toContain('2026-09-15（星期二）')
+    expect(xml).toContain('未来7天内共有 1 座水库满足条件，共形成 4 条晴天完整覆盖记录。')
     expect(xml).not.toContain('2026-09-30')
     expect(fetch).not.toHaveBeenCalled()
   })
