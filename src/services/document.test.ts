@@ -47,7 +47,7 @@ describe('observation plan document', () => {
   it('creates a valid docx package in the browser-compatible Blob format', async () => {
     const blob = await createObservationPlanBlob({
       reservoir: {
-        id: 'sample', code: 'HNSK-001', name_cn: '示例水库', city: '郑州市', lon: 113.65, lat: 34.76,
+        id: 'sample', code: 'HNSK-001', name_cn: '示例水库', basin: '淮河流域', city: '郑州市', lon: 113.65, lat: 34.76,
         area_km2: 12.34, osm_id: '', feature_class: 'reservoir', data_source: 'test', geometry_status: 'verified',
       },
       recommendations: process.env.DOCX_QA_OUTPUT
@@ -72,6 +72,7 @@ describe('observation plan document', () => {
     expect(xml).toContain('日期')
     expect(xml).toContain('Times New Roman')
     expect(xml).toContain('宋体')
+    expect(xml).toContain('示例水库（淮河流域）未来7天晴天实验方案')
     const parsed = new DOMParser().parseFromString(xml, 'application/xml')
     const tables = parsed.getElementsByTagName('w:tbl')
     expect(tables.length).toBe(4)
@@ -81,7 +82,8 @@ describe('observation plan document', () => {
       for (const row of Array.from(tables[index].getElementsByTagName('w:tr')).slice(1)) {
         const cells = row.getElementsByTagName('w:tc')
         expect(cells).toHaveLength(4)
-        expect(cells[1].textContent).toMatch(/^\d{4}-\d{2}-\d{2}$/)
+        expect(cells[0].textContent).toBe('示例水库（淮河流域）')
+        expect(cells[1].textContent).toMatch(/^\d{4}-\d{2}-\d{2}（星期[日一二三四五六]）$/)
         expect(cells[3].textContent).toBe('晴')
       }
     }

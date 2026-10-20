@@ -3,10 +3,10 @@ import { readFile } from 'node:fs/promises'
 import JSZip from 'jszip'
 import type { AllReservoirReportData } from './all-reservoir-report'
 import type { SatellitePass } from '../types'
-import { allReservoirReportFileName, buildAllReservoirReportRecords, buildUnavailableReservoirRecords, createAllReservoirReportBlob } from './all-reservoir-report'
+import { allReservoirReportFileName, buildAllReservoirReportRecords, buildUnavailableReservoirRecords, createAllReservoirReportBlob, reportDateLabel, reportReservoirName } from './all-reservoir-report'
 
 const reservoir = {
-  id: 'r1', code: 'HN-001', name_cn: '测试水库', city: '郑州市', lon: 113.6, lat: 34.7,
+  id: 'r1', code: 'HN-001', name_cn: '测试水库', basin: '淮河流域', city: '郑州市', lon: 113.6, lat: 34.7,
   area_km2: 10, osm_id: '', feature_class: 'reservoir', data_source: 'test', geometry_status: 'verified',
 }
 
@@ -54,6 +54,19 @@ describe('all-reservoir seven-day report', () => {
     expect(records.every((item) => item.weather === '晴')).toBe(true)
   })
 
+  it('derives the basin for production reservoir ids and adds the Chinese weekday', () => {
+    expect(reportReservoirName({ ...reservoir, id: 'HN_RSV_001', basin: undefined }))
+      .toBe('测试水库（海河流域）')
+    expect(reportDateLabel('2026-09-15')).toBe('2026-09-15（星期二）')
+  })
+
+  it('has a basin label for every production reservoir', async () => {
+    const collection = JSON.parse(await readFile('public/data/reservoirs.geojson', 'utf8'))
+    for (const feature of collection.features) {
+      expect(reportReservoirName(feature.properties)).toMatch(/（(?:黄河|淮河|长江|海河)流域）$/)
+    }
+  })
+
   it('creates a concise docx with all four family sections and requested columns', async () => {
     const blob = await createAllReservoirReportBlob(data)
     const zip = await JSZip.loadAsync(await blob.arrayBuffer())
@@ -66,6 +79,8 @@ describe('all-reservoir seven-day report', () => {
     expect(xml).toContain('w:jc w:val="center"')
     expect(xml).toContain('w:ascii="Times New Roman"')
     expect(xml).toContain('w:hAnsi="Times New Roman"')
+    expect(xml).toContain('测试水库（淮河流域）')
+    expect(xml).toContain('2026-09-15（星期二）')
     expect(xml).not.toContain('2026-09-30')
     expect(fetch).not.toHaveBeenCalled()
   })

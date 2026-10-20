@@ -1,5 +1,5 @@
 import type { ExperimentRecommendation, OrbitPassPayload, ReservoirProperties, WeatherResult } from '../types'
-import { createAllReservoirReportBlob } from './all-reservoir-report'
+import { createAllReservoirReportBlob, reportReservoirName } from './all-reservoir-report'
 import { isSupportedObservationPass } from './satellite'
 
 export interface ObservationPlanDocumentData {
@@ -67,7 +67,7 @@ export async function createObservationPlanBlob(data: ObservationPlanDocumentDat
     reservoirs: [data.reservoir], orbitPayload: payload,
     weatherByReservoir: weather ? { [data.reservoir.id]: weather } : {},
     generatedAt: data.generatedAt,
-    reportTitle: `${data.reservoir.name_cn}未来7天晴天实验方案`,
+    reportTitle: `${reportReservoirName(data.reservoir)}未来7天晴天实验方案`,
   })
 }
 

@@ -4,6 +4,7 @@ export interface ReservoirProperties {
   id: string
   code: string
   name_cn: string
+  basin?: string
   city: string
   lon: number
   lat: number

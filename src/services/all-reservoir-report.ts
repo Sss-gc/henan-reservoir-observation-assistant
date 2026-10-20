@@ -9,6 +9,14 @@ const MIME = 'application/vnd.openxmlformats-officedocument.wordprocessingml.doc
 const FAMILY_ORDER = ['Sentinel', 'HJ', 'Landsat', 'GF'] as const
 type Family = typeof FAMILY_ORDER[number]
 
+const BASIN_BY_RESERVOIR_ID = new Map<string, string>([
+  ...['HN_RSV_002', 'HN_RSV_010', 'HN_RSV_011', 'HN_RSV_016', 'HN_RSV_017'].map((id) => [id, '黄河流域'] as const),
+  ...['HN_RSV_003', 'HN_RSV_004', 'HN_RSV_005', 'HN_RSV_008', 'HN_RSV_009', 'HN_RSV_013', 'HN_RSV_014', 'HN_RSV_015', 'HN_RSV_018', 'HN_RSV_019', 'HN_RSV_020', 'HN_RSV_021', 'HN_RSV_022', 'HN_RSV_023', 'HN_RSV_025'].map((id) => [id, '淮河流域'] as const),
+  ...['HN_RSV_006', 'HN_RSV_012', 'HN_RSV_024'].map((id) => [id, '长江流域'] as const),
+  ...['HN_RSV_001', 'HN_RSV_007', 'HN_RSV_026'].map((id) => [id, '海河流域'] as const),
+])
+const WEEKDAYS = ['日', '一', '二', '三', '四', '五', '六']
+
 export interface AllReservoirReportData {
   reservoirs: ReservoirProperties[]
   orbitPayload: OrbitPassPayload
@@ -32,6 +40,17 @@ export interface UnavailableReservoirRecord {
 
 export function isSunnyWeather(condition: string) {
   return condition.trim() === '晴'
+}
+
+export function reportReservoirName(reservoir: Pick<ReservoirProperties, 'id' | 'name_cn' | 'basin'>) {
+  const basin = reservoir.basin?.trim() || BASIN_BY_RESERVOIR_ID.get(reservoir.id)
+  return basin ? `${reservoir.name_cn}（${basin}）` : reservoir.name_cn
+}
+
+export function reportDateLabel(date: string) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return date
+  const value = new Date(`${date}T00:00:00Z`)
+  return Number.isNaN(value.getTime()) ? date : `${date}（星期${WEEKDAYS[value.getUTCDay()]}）`
 }
 
 function family(satellite: string): Family {
@@ -122,14 +141,14 @@ function reportTable(parent: XmlElement, records: AllReservoirReportRecord[]) {
   append(props, 'tblLayout', { type: 'fixed' })
   const borders = append(props, 'tblBorders')
   for (const name of ['top', 'left', 'bottom', 'right', 'insideH', 'insideV']) append(borders, name, { val: 'single', sz: '4', color: 'A8C5C1' })
-  const widths = [1900, 1700, 2400, 2800]
+  const widths = [2500, 2400, 2500, 1400]
   const header = append(table, 'tr')
   const headerPr = append(header, 'trPr'); append(headerPr, 'tblHeader')
   ;['水库', '日期', '过境卫星', '白天天气'].forEach((value, index) => tableCell(header, value, widths[index], true))
   for (const record of records) {
     const row = append(table, 'tr')
     const rowPr = append(row, 'trPr'); append(rowPr, 'cantSplit')
-    ;[record.reservoir.name_cn, record.satellitePass.date, record.satellitePass.satellite, record.weather]
+    ;[reportReservoirName(record.reservoir), reportDateLabel(record.satellitePass.date), record.satellitePass.satellite, record.weather]
       .forEach((value, index) => tableCell(row, value, widths[index]))
   }
   return table
@@ -147,7 +166,7 @@ function unavailableTable(parent: XmlElement, records: UnavailableReservoirRecor
   tableCell(header, '水库', 2600, true); tableCell(header, '情况说明', 6200, true)
   for (const record of records) {
     const row = append(table, 'tr'); const rowPr = append(row, 'trPr'); append(rowPr, 'cantSplit')
-    tableCell(row, record.reservoir.name_cn, 2600); tableCell(row, record.reason, 6200)
+    tableCell(row, reportReservoirName(record.reservoir), 2600); tableCell(row, record.reason, 6200)
   }
 }
 
