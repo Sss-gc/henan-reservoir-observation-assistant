@@ -1,4 +1,5 @@
 import fs from 'node:fs'
+import { createRequire } from 'node:module'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import ts from 'typescript'
@@ -19,6 +20,12 @@ for (const name of ['recommendation', 'satellite']) {
 }
 const collection = JSON.parse(fs.readFileSync(path.join(root, 'public/data/reservoirs.geojson'), 'utf8'))
 const scopes = JSON.parse(fs.readFileSync(path.join(root, 'public/data/reservoir-sampling-scopes.geojson'), 'utf8'))
+const require = createRequire(path.join(mini, 'package.json'))
+const referenceLayouts = require('./data/sampling-reference.js')
+fs.writeFileSync(
+  path.join(root, 'public/data/sampling-reference.json'),
+  `${JSON.stringify(referenceLayouts)}\n`,
+)
 const scopesById = Object.fromEntries(scopes.features.map((feature) => [feature.properties.id, feature]))
 const roundRing = (ring) => ring.map(([lon, lat]) => [Number(lon.toFixed(6)), Number(lat.toFixed(6))])
 const polygonsFor = (geometry) => (geometry.type === 'MultiPolygon' ? geometry.coordinates : [geometry.coordinates])

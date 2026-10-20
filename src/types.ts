@@ -85,3 +85,52 @@ export interface ExperimentRecommendation {
   level: '推荐' | '备选' | '不推荐' | '待预报'
   reasons: string[]
 }
+
+export type SamplingCoordinate = [number, number]
+
+export interface SamplingScopeProperties {
+  id: string
+  scope: string
+  sampling_area_km2: number
+  full_area_km2: number
+  retained_pct: number
+  lon: number
+  lat: number
+  shore_candidates: SamplingCoordinate[]
+  shore_candidate_note: string
+}
+
+export type SamplingScopeFeature = Feature<Polygon | MultiPolygon, SamplingScopeProperties>
+export type SamplingScopeCollection = FeatureCollection<Polygon | MultiPolygon, SamplingScopeProperties>
+
+export interface SamplingReservoir {
+  id: string
+  code: string
+  name_cn: string
+  city: string
+  basin: string
+  lon: number
+  lat: number
+  area_km2: number
+  full_area_km2: number
+  scope_retained_pct: number
+  sampling_scope: string
+  shore_candidate_note: string
+  shore_candidates: SamplingCoordinate[]
+  polygons: SamplingCoordinate[][][]
+  rings: SamplingCoordinate[][]
+}
+
+export interface SamplingReferencePoint {
+  name: string
+  longitude: number
+  latitude: number
+}
+
+export interface SamplingReferenceLayout {
+  basis: string
+  year: number | null
+  points: SamplingReferencePoint[]
+}
+
+export type SamplingReferenceLayouts = Record<string, SamplingReferenceLayout>

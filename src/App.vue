@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import * as L from 'leaflet'
 import type { GeoJsonObject } from 'geojson'
 import {
@@ -15,6 +15,9 @@ import { isSupportedObservationPass, normalizeObservationPass } from './services
 import { buildExperimentRecommendation } from './services/recommendation'
 import { downloadObservationPlan } from './services/document'
 import { downloadAllReservoirReport } from './services/all-reservoir-report'
+import { reservoirBasin } from './services/sampling'
+
+const SamplingDesigner = defineAsyncComponent(() => import('./components/SamplingDesigner.vue'))
 
 const mapElement = ref<HTMLDivElement | null>(null)
 const reservoirs = ref<ReservoirFeature[]>([])
@@ -28,6 +31,9 @@ const loadError = ref('')
 const weatherError = ref('')
 const basemapStatus = ref<'loading' | 'tianditu' | 'unavailable'>('loading')
 const searchQuery = ref('')
+const selectedBasin = ref('')
+const samplingOpen = ref(false)
+let samplingTrigger: HTMLElement | null = null
 const selectedSatellite = ref('全部卫星')
 const listOpenOnMobile = ref(false)
 const weatherStrip = ref<HTMLDivElement | null>(null)
@@ -43,16 +49,54 @@ let map: L.Map | null = null
 let reservoirLayer: L.GeoJSON | null = null
 const featureLayers = new Map<string, L.Layer>()
 const tiandituKey = import.meta.env.VITE_TIANDITU_KEY?.trim() ?? ''
+const basinColors: Record<string, string> = {
+  黄河流域: '#d08770', 淮河流域: '#88c0d0', 长江流域: '#a3be8c', 海河流域: '#b48ead',
+}
+const basinOptions = computed(() => Object.keys(basinColors).map((name) => ({
+  name, count: reservoirs.value.filter((feature) => feature.properties.basin === name).length,
+})))
 
 const filteredReservoirs = computed(() => {
   const keyword = searchQuery.value.trim().toLowerCase()
-  if (!keyword) return reservoirs.value
   return reservoirs.value.filter(({ properties }) =>
-    [properties.name_cn, properties.city, properties.code].some((value) =>
+    (!selectedBasin.value || properties.basin === selectedBasin.value) &&
+    [properties.name_cn, properties.city, properties.code, properties.basin].some((value) =>
       String(value).toLowerCase().includes(keyword),
     ),
   )
 })
+
+function openSampling(event: MouseEvent) {
+  samplingTrigger = event.currentTarget as HTMLElement
+  samplingOpen.value = true
+}
+
+async function closeSampling() {
+  samplingOpen.value = false
+  await nextTick()
+  map?.invalidateSize()
+  samplingTrigger?.focus()
+}
+
+function showReservoirOverview(basin = '') {
+  selectedBasin.value = basin
+  const bounds = L.latLngBounds([])
+  for (const feature of reservoirs.value) {
+    if (basin && feature.properties.basin !== basin) continue
+    const layer = featureLayers.get(feature.properties.id)
+    if (layer && 'getBounds' in layer) bounds.extend((layer as L.Polygon).getBounds())
+  }
+  if (bounds.isValid()) map?.fitBounds(bounds, { padding: [32, 32] })
+}
+
+function focusCurrentReservoir() {
+  const layer = selected.value && featureLayers.get(selected.value.properties.id)
+  if (layer && 'getBounds' in layer) map?.fitBounds((layer as L.Polygon).getBounds(), { padding: [42, 42], maxZoom: 14 })
+}
+
+function changeMapZoom(delta: number) {
+  map?.setZoom((map.getZoom() ?? 7) + delta)
+}
 
 const selectedPasses = computed(() => {
   const id = selected.value?.properties.id
@@ -195,9 +239,10 @@ async function downloadAllPlans() {
 
 function reservoirStyle(feature?: ReservoirFeature) {
   const active = feature?.properties.id === selected.value?.properties.id
+  const basinColor = basinColors[feature?.properties.basin ?? ''] ?? '#2dd4bf'
   return {
-    color: active ? '#fbbf24' : '#2dd4bf', weight: active ? 3 : 1.2,
-    fillColor: active ? '#f59e0b' : '#0891b2', fillOpacity: active ? 0.66 : 0.4,
+    color: active ? '#fbbf24' : basinColor, weight: active ? 3 : 1.2,
+    fillColor: active ? '#f59e0b' : basinColor, fillOpacity: active ? 0.66 : 0.4,
   }
 }
 
@@ -267,14 +312,13 @@ function initializeMap(collection: ReservoirCollection) {
   if (!mapElement.value) return
   map = L.map(mapElement.value, { zoomControl: false }).setView([34.2, 113.6], 7)
   map.attributionControl.setPrefix(false)
-  L.control.zoom({ position: 'bottomright' }).addTo(map)
   addConfiguredBasemap(map)
   reservoirLayer = L.geoJSON(collection as GeoJsonObject, {
     style: (feature) => reservoirStyle(feature as ReservoirFeature),
     onEachFeature: (rawFeature, layer) => {
       const feature = rawFeature as ReservoirFeature
       featureLayers.set(feature.properties.id, layer)
-      layer.bindTooltip(feature.properties.name_cn, { className: 'reservoir-tooltip', sticky: true })
+      layer.bindTooltip(`${feature.properties.name_cn} · ${feature.properties.basin}`, { className: 'reservoir-tooltip', sticky: true })
       layer.on('click', () => selectReservoir(feature, true))
     },
   }).addTo(map)
@@ -286,10 +330,13 @@ async function loadApplication() {
   loadError.value = ''
   try {
     const [reservoirResponse, orbitResponse] = await Promise.all([
-      fetch('/data/reservoirs.geojson?v=20260902-hanjiang-full'), fetch('/data/orbit-passes.json'),
+      fetch('/data/reservoirs.geojson'), fetch('/data/orbit-passes.json'),
     ])
     if (!reservoirResponse.ok || !orbitResponse.ok) throw new Error('静态观测数据加载失败')
     const collection = await reservoirResponse.json() as ReservoirCollection
+    collection.features.forEach((feature) => {
+      feature.properties.basin ||= reservoirBasin(feature.properties.id)
+    })
     orbitPayload.value = await orbitResponse.json() as OrbitPassPayload
     orbitPayload.value.items = orbitPayload.value.items.map(normalizeObservationPass).filter(isSupportedObservationPass)
     reservoirs.value = collection.features
@@ -331,35 +378,48 @@ onBeforeUnmount(() => {
 
     <div v-else class="workspace">
       <aside class="reservoir-sidebar" :class="{ mobileOpen: listOpenOnMobile }">
-        <div class="sidebar-title"><div><p class="eyebrow">25 RESERVOIRS</p><h2>选择实验水库</h2></div><button class="mobile-close" @click="listOpenOnMobile = false"><X :size="20" /></button></div>
-        <label class="search-box"><Search :size="16" /><input v-model="searchQuery" placeholder="搜索名称、城市或编号" /><button v-if="searchQuery" @click="searchQuery = ''"><X :size="14" /></button></label>
+        <div class="sidebar-title"><div><p class="eyebrow">{{ reservoirs.length }} RESERVOIRS</p><h2>选择实验水库</h2></div><button class="mobile-close" aria-label="关闭水库列表" @click="listOpenOnMobile = false"><X :size="20" /></button></div>
+        <label class="search-box"><Search :size="16" /><input v-model="searchQuery" aria-label="搜索水库" placeholder="搜索名称、流域、城市或编号" /><button v-if="searchQuery" aria-label="清空搜索" @click="searchQuery = ''"><X :size="14" /></button></label>
+        <div class="basin-filters" aria-label="按流域筛选水库">
+          <button :class="{ active: !selectedBasin }" :aria-pressed="!selectedBasin" @click="showReservoirOverview()">全部 {{ reservoirs.length }}</button>
+          <button v-for="basin in basinOptions" :key="basin.name" :class="{ active: selectedBasin === basin.name }" :aria-pressed="selectedBasin === basin.name" @click="showReservoirOverview(basin.name)"><i :style="{ background: basinColors[basin.name] }"></i>{{ basin.name }} {{ basin.count }}</button>
+        </div>
         <div class="reservoir-list">
           <button v-for="feature in filteredReservoirs" :key="feature.properties.id" class="reservoir-item" :class="{ active: selected?.properties.id === feature.properties.id }" @click="selectReservoir(feature)">
-            <span class="reservoir-dot"></span><span><strong>{{ feature.properties.name_cn }}</strong><small>{{ feature.properties.city }}</small></span><b>{{ feature.properties.area_km2.toFixed(1) }} km²</b>
+            <span class="reservoir-dot" :style="{ background: basinColors[feature.properties.basin ?? ''] }"></span><span><strong>{{ feature.properties.name_cn }}</strong><small>{{ feature.properties.basin }} · {{ feature.properties.city }}</small></span><b>{{ feature.properties.area_km2.toFixed(1) }} km²</b>
           </button>
+          <p v-if="!filteredReservoirs.length" class="section-note">没有找到匹配的水库</p>
         </div>
         <div class="sidebar-source"><DatabaseZap :size="15" /><span>轨道数据每日自动更新<br />仅保留完整覆盖窗口</span></div>
       </aside>
       <button v-if="listOpenOnMobile" class="sidebar-backdrop" aria-label="关闭列表" @click="listOpenOnMobile = false"></button>
 
       <section class="map-panel">
-        <div ref="mapElement" class="map"></div>
-        <div v-if="selected" class="map-selection"><LocateFixed :size="15" /><strong>{{ selected.properties.name_cn }}</strong><span>{{ selected.properties.lon.toFixed(4) }}, {{ selected.properties.lat.toFixed(4) }}</span></div>
-        <div v-if="basemapStatus === 'unavailable'" class="map-basemap-status unavailable">天地图底图暂不可用</div>
-        <div class="map-legend"><span><i></i>省控水库边界</span><span><i class="selected"></i>当前水库</span></div>
+        <div class="map-viewport">
+          <div ref="mapElement" class="map"></div>
+          <div v-if="selected" class="map-selection"><LocateFixed :size="15" /><strong>{{ selected.properties.name_cn }}</strong><span>{{ selected.properties.lon.toFixed(4) }}, {{ selected.properties.lat.toFixed(4) }}</span></div>
+          <div v-if="basemapStatus === 'unavailable'" class="map-basemap-status unavailable">天地图底图暂不可用</div>
+          <div class="map-legend"><span><i></i>水库边界</span><span><i class="selected"></i>当前水库</span></div>
+        </div>
+        <div class="map-design-actions" aria-label="地图操作">
+          <div class="map-zoom-actions"><button aria-label="放大水库地图" @click="changeMapZoom(1)">＋</button><button aria-label="缩小水库地图" @click="changeMapZoom(-1)">−</button></div>
+          <button @click="showReservoirOverview()"><MapPinned :size="14" />全部水库</button>
+          <button @click="focusCurrentReservoir"><LocateFixed :size="14" />定位当前</button>
+          <button v-if="selected" class="sampling-entry" @click="openSampling"><MapPinned :size="15" />点位设计</button>
+        </div>
       </section>
 
       <aside v-if="selected" class="detail-panel">
         <section class="detail-hero">
           <p class="eyebrow">FIELD OBSERVATION PLANNER</p>
-          <div class="detail-title"><div><h2>{{ selected.properties.name_cn }}</h2><p><MapPinned :size="14" />{{ selected.properties.city }} · {{ selected.properties.area_km2.toFixed(2) }} km²</p></div><span>{{ selected.properties.code }}</span></div>
+          <div class="detail-title"><div><h2>{{ selected.properties.name_cn }}</h2><p><MapPinned :size="14" />{{ selected.properties.city }} · {{ selected.properties.area_km2.toFixed(2) }} km²</p><p class="detail-basin">{{ selected.properties.basin }}</p></div><button class="sampling-entry" @click="openSampling"><MapPinned :size="15" />点位设计</button></div>
           <div class="data-freshness"><span>轨道生成 {{ formatTimestamp(orbitPayload?.generated_at) }}</span><span>轨道历元 {{ formatTimestamp(orbitPayload?.element_epoch_latest) }}</span></div>
         </section>
 
         <section class="notice"><CircleAlert :size="16" /><p>推荐日期先按卫星完整覆盖过境窗口匹配中央气象台当天预报，仅保留白天天气严格为“晴”的窗口。耀光风险继续作为现场参考，不再改变晴天筛选结果；卫星实际成像仍需出发前核验。</p></section>
 
         <section class="all-report-card">
-          <div><p class="eyebrow">ALL RESERVOIRS · 7 DAYS</p><h3>全部水库晴天实验方案</h3><span>仅保留白天晴 · 按四类卫星分组</span></div>
+          <div><p class="eyebrow">SUNNY RESERVOIRS · 7 DAYS</p><h3>7天内满足条件的水库方案</h3><span>仅保留白天晴 · 按四类卫星分组</span></div>
           <button class="all-report-download" :disabled="allReportDownloading" @click="downloadAllPlans">
             <RefreshCw v-if="allReportDownloading" class="spin" :size="15" /><FileDown v-else :size="15" />
             {{ allReportDownloading ? '正在汇总' : '一键下载' }}
@@ -435,5 +495,24 @@ onBeforeUnmount(() => {
         <footer><CalendarCheck :size="14" />天气为中央气象台未来7天文字预报 · 每天09:00更新缓存 · 耀光角越小风险越高 · 所有时间均为北京时间</footer>
       </aside>
     </div>
+    <SamplingDesigner v-if="samplingOpen && selected" :reservoirs="reservoirs" :selected="selected" @select="selectReservoir" @close="closeSampling" />
   </main>
 </template>
+
+<style scoped>
+.basin-filters{display:flex;flex-wrap:wrap;gap:6px;margin:0 3px 12px}
+.basin-filters button{display:flex;align-items:center;gap:5px;padding:6px 8px;border:1px solid var(--line);border-radius:7px;background:#0c2431;color:#9eb9c7;font-size:10px;cursor:pointer}
+.basin-filters button.active{border-color:var(--teal);color:#dffbf6;background:#123b42}
+.basin-filters i{width:6px;height:6px;border-radius:50%}
+.map-panel{display:flex;flex-direction:column}
+.map-viewport{position:relative;flex:1;min-height:0}
+.map-design-actions{display:flex;flex-wrap:wrap;gap:8px;padding:10px 12px;background:#0a1d29;border-top:1px solid var(--line);flex:none}
+.map-design-actions button{flex:1}
+.map-zoom-actions{display:flex;gap:4px}.map-zoom-actions button{min-width:30px;padding-left:7px;padding-right:7px}
+.map-design-actions button,.sampling-entry{display:inline-flex;align-items:center;justify-content:center;gap:6px;border:1px solid #365462;border-radius:9px;background:#0b2633;color:#d5e9ee;padding:9px 11px;font-size:11px;cursor:pointer;white-space:nowrap}
+.map-design-actions .sampling-entry,.sampling-entry{border-color:#318b83;background:#16453f;color:#bdf9eb}
+.sampling-entry:hover{background:#205a51}
+.detail-title .sampling-entry{flex-shrink:0}
+.detail-title p.detail-basin{margin-top:5px;color:#8cd9cd;font-size:11px}
+@media(max-width:480px){.map-design-actions{gap:6px;padding:9px}.map-design-actions button{padding:10px 6px}.map-selection{left:12px;max-width:calc(100% - 24px)}.map-selection span{display:none}}
+</style>
