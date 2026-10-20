@@ -1,14 +1,23 @@
 .plan-title { margin-top: 14rpx; font-size: 42rpx; }
-.scope-switch { display: flex; padding: 7rpx; border-radius: 17rpx; background: #0a2230; border: 1rpx solid #234353; }
-.scope { width: 50%; padding: 19rpx 4rpx; text-align: center; color: #88a6b5; font-size: 26rpx; border-radius: 12rpx; }
-.scope.active { background: #153f49; color: #5eead4; }
-.summary-card { border-color: #24615e; }
-.summary-metrics { display: flex; justify-content: space-around; text-align: center; padding: 28rpx 0; color: #88a6b5; font-size: 22rpx; }
-.summary-metrics text { font-size: 54rpx; color: #e6f1f6; font-weight: 600; }
+.plan-title + .subtitle { margin-top: 12rpx; }
+.scope-switch { display: flex; gap: 6rpx; margin-top: 26rpx; padding: 7rpx; border-radius: 20rpx; background: #0f2632; border: 1rpx solid #314c5b; }
+.scope { width: 50%; padding: 17rpx 4rpx; border: 1rpx solid #294653; text-align: center; color: #91a7b5; background: #081a22; font-size: 25rpx; border-radius: 14rpx; }
+.scope.active { background: #1b3946; color: #88c0d0; }
+.summary-card { border-color: #506b5b; background: #172c2e; }
+.summary-label { margin-bottom: 5rpx; color: #a7bac6; font-size: 22rpx; }
+.summary-title { font-size: 34rpx; font-weight: 650; line-height: 1.45; }
+.summary-metrics { display: flex; justify-content: space-around; text-align: center; margin: 22rpx 0 26rpx; padding: 16rpx 0; border-top: 1rpx solid #405a50; border-bottom: 1rpx solid #405a50; color: #91a7b5; font-size: 22rpx; }
+.summary-metrics > view { flex: 1; }
+.summary-metrics > view + view { border-left: 1rpx solid #405a50; }
+.summary-metrics text { font-size: 46rpx; color: #eceff4; font-weight: 600; line-height: 1.4; }
+.plan-list-heading { display: flex; justify-content: space-between; align-items: baseline; margin-top: 34rpx; }
+.group-card { margin-top: 18rpx; }
 .copy-note { margin-top: 16rpx; text-align: center; }
 .copy-button { margin-top: 20rpx; }
-.document-error { margin-top: 18rpx; color: #fda4af; font-size: 24rpx; word-break: break-all; }
-.plan-record { margin-top: 24rpx; padding-top: 24rpx; border-top: 1rpx solid #203b4a; }
+.document-error { margin-top: 18rpx; color: #d9828a; font-size: 24rpx; word-break: break-all; }
+.plan-record { margin-top: 20rpx; padding: 20rpx 16rpx; border: 1rpx solid #365462; border-left: 3rpx solid #5e81ac; border-radius: 14rpx; background: #091d27; }
 .record-name { font-size: 27rpx; font-weight: 600; }
-.record-satellite { margin: 5rpx 0 10rpx; font-size: 24rpx; color: #c0d7e2; }
+.record-satellite { margin: 5rpx 0 10rpx; font-size: 24rpx; color: #c8d5de; }
+.record-detail { align-items: baseline; }
+.record-date { color: #e5e9f0; font-size: 29rpx; font-weight: 600; }
 .back-button { margin-top: 28rpx; }

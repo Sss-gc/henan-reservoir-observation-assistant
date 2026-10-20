@@ -1,17 +1,17 @@
 import assert from 'node:assert/strict'
 import { test } from 'vitest'
-import { hasCurrentBatch, hasCurrentWeather, needsRefresh } from './check-mini-static-freshness.mjs'
+import { expectedDocumentCount, expectedReservoirCount, hasCurrentBatch, hasCurrentWeather, needsRefresh } from './check-mini-static-freshness.mjs'
 
 const now = new Date('2026-10-18T01:45:00Z')
 const manifest = () => ({
   pipeline: 'miniprogram-static-independent-v1',
   generatedAt: '2026-10-18T01:20:00Z', weatherGeneratedAt: '2026-10-18T01:16:00Z',
   orbitGeneratedAt: '2026-10-18T09:19:00+08:00',
-  documents: Object.fromEntries(Array.from({ length: 26 }, (_, i) => [String(i), {}])),
+  documents: Object.fromEntries(Array.from({ length: expectedDocumentCount }, (_, i) => [String(i), {}])),
 })
 const weather = (publishedAt = '2026-10-18T08:00:00+08:00') => ({
   pipeline: 'miniprogram-static-independent-v1', source: '中央气象台', generatedAt: '2026-10-18T01:16:00Z',
-  items: Object.fromEntries(Array.from({ length: 25 }, (_, i) => [String(i), {
+  items: Object.fromEntries(Array.from({ length: expectedReservoirCount }, (_, i) => [String(i), {
     fetchedAt: '2026-10-18T01:16:00Z', publishedAt, cacheStatus: 'static',
     days: Array.from({ length: 7 }, (_, day) => ({ date: `2026-10-${String(18 + day).padStart(2, '0')}` })),
   }])),
@@ -39,7 +39,7 @@ test('invalid dates, wrong pipeline or incomplete documents require recovery', (
     assert.equal(hasCurrentBatch(batch, now), false)
   }
 })
-test('weather freshness requires all 25 stations to be fetched and published today', () => {
+test('weather freshness requires every reservoir forecast to be fetched and published today', () => {
   assert.equal(hasCurrentWeather(weather(), now), true)
   assert.equal(hasCurrentWeather(weather('2026-10-17T18:00:00+08:00'), now), false)
   assert.equal(hasCurrentWeather({ ...weather(), items: {} }, now), false)

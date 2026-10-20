@@ -12,8 +12,14 @@ def main() -> None:
     reservoirs = json.loads((ROOT / "public/data/reservoirs.geojson").read_text(encoding="utf-8"))
     passes = json.loads((ROOT / "public/data/orbit-passes.json").read_text(encoding="utf-8"))
     features = reservoirs.get("features", [])
-    assert len(features) == 25, "reservoirs.geojson必须包含25座水库"
+    assert features, "reservoirs.geojson不能为空"
     reservoir_ids = {item["properties"]["id"] for item in features}
+    assert len(reservoir_ids) == len(features), "水库编号必须完整且唯一"
+    xiaonanhai = next(item for item in features if item["properties"]["id"] == "HN_RSV_026")
+    assert xiaonanhai["properties"]["name_cn"] == "小南海水库"
+    assert xiaonanhai["properties"]["city_official"] == "安阳市"
+    assert xiaonanhai["properties"]["osm_id"] == "4433332"
+    assert xiaonanhai["properties"]["geometry_status"] == "verified-valid-supplemented"
     danjiang = next(item for item in features if item["properties"]["id"] == "HN_RSV_024")
     assert danjiang["geometry"]["type"] == "MultiPolygon"
     assert len(danjiang["geometry"]["coordinates"]) >= 3, "丹江口水库必须包含主库区和汉江补充区域"
@@ -31,7 +37,9 @@ def main() -> None:
     assert items, "orbit-passes.json不能为空"
     assert passes["is_imaging_confirmed"] is False
     assert passes["schema_version"] == "static-observation-v2"
+    assert passes["reservoir_count"] == len(features)
     assert passes["reservoirs_with_passes"] == len({item["reservoir_id"] for item in items})
+    assert {item["reservoir_id"] for item in items} == reservoir_ids, "每座水库都必须有过境窗口"
     for item in items:
         if item['satellite'].startswith('HJ'):
             assert item['satellite'] == 'HJ-2B', 'HJ仅保留HJ-2B'

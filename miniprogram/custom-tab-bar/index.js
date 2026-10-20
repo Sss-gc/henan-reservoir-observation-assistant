@@ -1,6 +1,7 @@
 Component({
   data: {
     selected: -1,
+    hidden: false,
     tabs: [
       { pagePath: 'pages/dashboard/dashboard', text: '水库观测' },
       { pagePath: 'pages/plan/plan', text: '实验方案' },
@@ -19,10 +20,15 @@ Component({
     switchTab(event) {
       const index = Number(event.currentTarget.dataset.index)
       if (index === this.data.selected || this._switching || !this.data.tabs[index]) return
+      const previous = this.data.selected
       this._switching = true
+      this.setData({ selected: index })
       wx.switchTab({
         url: '/' + this.data.tabs[index].pagePath,
-        fail: () => wx.showToast({ title: '切换失败，请重试', icon: 'none' }),
+        fail: () => {
+          this.setData({ selected: previous })
+          wx.showToast({ title: '切换失败，请重试', icon: 'none' })
+        },
         complete: () => { this._switching = false },
       })
     },

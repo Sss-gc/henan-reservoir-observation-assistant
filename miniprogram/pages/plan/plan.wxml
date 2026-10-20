@@ -1,30 +1,32 @@
+<page-meta background-color="#06141d" background-color-top="#06141d" background-color-bottom="#06141d" root-background-color="#06141d" page-style="background-color: #06141d;" />
 <view class="page tab-page" wx:if="{{selected}}">
   <view class="eyebrow">OBSERVATION PLAN</view><view class="title plan-title">把好天气排进计划</view>
   <view class="subtitle">按卫星系列整理晴天完整覆盖窗口</view>
-  <view class="section-note">轨道生成 {{meta.orbitGeneratedAt || '未获取'}} · 天气批次 {{meta.weatherGeneratedAt || '未获取'}}</view>
   <view wx:if="{{meta.orbitError || meta.weatherError}}" class="preview-banner">{{meta.orbitError || meta.weatherError}}</view>
   <view wx:if="{{meta.orbitStale || meta.weatherStale}}" class="preview-banner">云端数据尚未全部更新至今日，请核验来源时间。</view>
   <view class="scope-switch">
-    <view class="scope {{scope === '当前水库' ? 'active' : ''}}" data-scope="当前水库" bindtap="selectScope">当前水库</view>
-    <view class="scope {{scope === '全部水库' ? 'active' : ''}}" data-scope="全部水库" bindtap="selectScope">全部 25 座水库</view>
+    <view class="scope {{scope === '当前水库' ? 'active' : ''}}" data-scope="当前水库" bindtap="selectScope" hover-class="interactive-pressed" hover-stay-time="80">当前水库</view>
+    <view class="scope {{scope === '全部水库' ? 'active' : ''}}" data-scope="全部水库" bindtap="selectScope" hover-class="interactive-pressed" hover-stay-time="80">全部 25 座水库</view>
   </view>
   <view class="card summary-card">
-    <view class="row"><view class="section-title">{{scope === '当前水库' ? selected.name_cn : '河南省水库实验方案'}}</view><text class="pill">晴天方案</text></view>
+    <view class="summary-label">{{scope === '当前水库' ? selected.city : '河南省 · 全部水库'}}</view>
+    <view class="row"><view class="summary-title">{{scope === '当前水库' ? selected.name_cn : '河南省水库实验方案'}}</view><text class="pill">晴天方案</text></view>
     <view class="summary-metrics"><view><text>{{count}}</text><view>晴天窗口</view></view><view><text>{{reservoirCount}}</text><view>涉及水库</view></view><view><text>7</text><view>预报天数</view></view></view>
-    <button class="primary" loading="{{documentLoading}}" disabled="{{loading || documentLoading}}" bindtap="downloadWord">{{documentLoading ? '正在生成 Word…' : '下载 Word 方案'}}</button>
+    <button class="primary" loading="{{documentLoading}}" disabled="{{loading || documentLoading}}" bindtap="downloadWord">{{documentLoading ? '正在下载 Word…' : '下载 Word 方案'}}</button>
     <view wx:if="{{documentError}}" class="document-error">{{documentError}}</view>
-    <view class="section-note copy-note">沿用网站 Word 模板，下载后打开文档，可在右上角菜单保存或转发</view>
+    <view class="section-note copy-note">打开文档后，可从右上角菜单保存或转发</view>
     <button class="secondary copy-button" disabled="{{loading || documentLoading}}" bindtap="copyPlan">复制方案文字</button>
   </view>
-  <view wx:for="{{groups}}" wx:for-item="group" wx:key="name" class="card">
-    <view class="row"><view class="section-title">{{group.name}} 系列</view><text class="muted small">{{group.records.length}} 条</text></view>
-    <view wx:for="{{group.records}}" wx:key="id" class="plan-record" data-id="{{item.id}}" bindtap="openPass">
+  <view class="plan-list-heading"><text class="section-title">按卫星查看</text><text class="muted small">晴天 · 完整覆盖</text></view>
+  <view wx:for="{{groups}}" wx:for-item="group" wx:key="name" class="card group-card">
+    <view class="row"><view class="section-title">{{group.name}} 系列</view><text class="pill slate">{{group.records.length}} 条</text></view>
+    <view wx:for="{{group.records}}" wx:key="id" class="plan-record" data-id="{{item.id}}" bindtap="openPass" hover-class="interactive-pressed" hover-stay-time="80">
       <view class="row"><text class="record-name">{{item.reservoirName}}</text><text class="small accent">晴 ›</text></view>
       <view class="record-satellite">{{item.satellite}}</view>
-      <view class="row small"><text class="muted">{{item.dateLabel}} {{item.time}}</text><text class="risk-{{item.glint_risk}}">耀光{{item.glintLabel}} {{item.glintAngle}}°</text></view>
+      <view class="row record-detail"><text class="record-date">{{item.dateLabel}}</text><text class="small risk-{{item.glint_risk}}">耀光{{item.glintLabel}} {{item.glintAngle}}°</text></view>
     </view>
     <view wx:if="{{!group.records.length}}" class="empty">暂无符合条件的晴天完整覆盖窗口</view>
   </view>
   <button class="secondary back-button" bindtap="backToReservoir">返回水库观测 · 切换水库</button>
-  <view class="footnote">按 Sentinel → HJ → Landsat → GF 排序，同一水库、日期、卫星只保留一条晴天记录。耀光风险单独提示，晴天判断不代表已安排成像。天气未获取时无法形成对应水库的晴天方案。</view>
+  <view class="footnote">按 Sentinel → HJ → Landsat → GF 排序，同一水库、日期、卫星只保留一条晴天记录，具体时刻请点开记录查看。耀光风险单独提示，晴天判断不代表已安排成像。天气未获取时无法形成对应水库的晴天方案。</view>
 </view>

@@ -1,4 +1,5 @@
 const reservoirs = require('../data/reservoirs')
+const { BASINS, getBasin } = require('../data/basins')
 const network = require('./network')
 const { buildExperimentRecommendation } = require('./recommendation')
 const { isSupportedObservationPass, normalizeObservationPass } = require('./satellite')
@@ -9,8 +10,15 @@ let passes = [], weatherById = {}, pending = null
 
 function beijingDay() { return new Date(Date.now() + 8 * 3600000).toISOString().slice(0, 10) }
 function beijingDate(value) { return new Date(Date.parse(value) + 8 * 3600000).toISOString().slice(0, 10) }
-function getReservoir(id) { return reservoirs.find((item) => item.id === id) || null }
-function getReservoirList() { return reservoirs.map(({ rings, ...item }) => item) }
+function withBasin(item) {
+  const basin = item && getBasin(item.id)
+  return item && basin ? { ...item, basin: basin.name, basinShortName: basin.shortName, basinColor: basin.color } : item
+}
+function getReservoir(id) { return withBasin(reservoirs.find((item) => item.id === id) || null) }
+function getReservoirList() {
+  return reservoirs.map(({ rings, polygons, shore_candidates, ...item }) => withBasin(item))
+}
+function getBasins() { return BASINS.map(({ ids, ...basin }) => ({ ...basin, count: ids.length })) }
 function satelliteFamily(name) {
   if (name.startsWith('Sentinel')) return 'Sentinel'
   if (name.startsWith('HJ')) return 'HJ'
@@ -19,8 +27,15 @@ function satelliteFamily(name) {
 }
 function satelliteOrder(name) { return ['Sentinel', 'HJ', 'Landsat', 'GF'].indexOf(satelliteFamily(name)) }
 function dateLabel(date) {
+  return `${date.slice(5).replace('-', '/')} ${weekdayLabel(date)}`
+}
+function fullDateLabel(date) {
+  const [year, month, day] = date.split('-').map(Number)
+  return `${year}年${month}月${day}日`
+}
+function weekdayLabel(date) {
   const weekday = ['日', '一', '二', '三', '四', '五', '六'][new Date(`${date}T12:00:00+08:00`).getUTCDay()]
-  return `${date.slice(5).replace('-', '/')} 周${weekday}`
+  return `周${weekday}`
 }
 function weatherSymbol(condition) {
   if (/雷/.test(condition)) return 'ϟ'
@@ -97,7 +112,8 @@ function getWeatherCards(id) {
 function decoratePass(pass) {
   const weather = getWeather(pass.reservoir_id)
   const recommendation = buildExperimentRecommendation(pass, weather)
-  return { ...pass, dateLabel: dateLabel(pass.date), glintLabel: GLINT_LABELS[pass.glint_risk],
+  return { ...pass, dateLabel: dateLabel(pass.date), fullDateLabel: fullDateLabel(pass.date), weekdayLabel: weekdayLabel(pass.date),
+    glintLabel: GLINT_LABELS[pass.glint_risk],
     glintAngle: pass.glint_angle_deg.toFixed(1), level: recommendation.level,
     levelTone: recommendation.level === '推荐' ? 'sunny' : recommendation.level === '待预报' ? 'pending' : 'no',
     score: recommendation.score === null ? '—' : recommendation.score,
@@ -130,7 +146,7 @@ function getPlanGroups(id) {
       .sort((a, b) => a.time_utc.localeCompare(b.time_utc) || a.reservoir_id.localeCompare(b.reservoir_id)) }))
 }
 function buildPlanText(id) {
-  const lines = [`${id ? getReservoir(id).name_cn : '全部25座水库'} · 晴天实验方案`,
+  const lines = [`${id ? getReservoir(id).name_cn : `全部${reservoirs.length}座水库`} · 晴天实验方案`,
     `轨道生成时间：${meta.orbitGeneratedAt || '未获取'}`, `天气来源：中央气象台；独立数据批次：${meta.weatherGeneratedAt || '未获取'}`,
     meta.orbitStale ? '提示：云端轨道不是今日更新，请核验数据时间。' : '',
     meta.weatherStale ? '提示：部分天气为旧缓存，请核验各站更新时间。' : '',
@@ -172,27 +188,30 @@ function bounds(points) {
   return [{ longitude: west, latitude: south }, { longitude: east, latitude: north }]
 }
 function buildNativeMapData(map) {
-  const markerIds = {}
+  const markerIds = {}, markerBasins = {}
   const markers = map.markers.map((marker, index) => {
     const selected = marker.id === map.selectedId, id = index + 1
     markerIds[id] = marker.id
+    markerBasins[id] = marker.basin
     return { id, ...wgs84ToGcj02(marker.longitude, marker.latitude),
       iconPath: selected ? '/assets/marker-selected.png' : '/assets/marker.png',
       width: selected ? 30 : 22, height: selected ? 38 : 28,
-      ...(selected ? { callout: { content: marker.name, display: 'ALWAYS', padding: 6,
-        fontSize: 12, color: '#123442', bgColor: '#E7FAF6', borderRadius: 4 } } : {}),
+      ...(selected ? { callout: { content: `${marker.name} · ${marker.basin}`, display: 'ALWAYS', padding: 6,
+        fontSize: 12, color: '#2E3440', bgColor: '#ECEFF4', borderRadius: 4 } } : {}),
     }
   })
   const selected = markers.find((marker) => markerIds[marker.id] === map.selectedId)
   // Boundary coordinates only determine the camera framing; no vector overlay is rendered.
   const currentBounds = bounds(map.rings.flat().map(([lon, lat]) => wgs84ToGcj02(lon, lat)))
-  return { markerIds, currentBounds, allBounds: bounds(markers),
+  return { markerIds, markerBasins, currentBounds, allBounds: bounds(markers),
     view: { longitude: selected.longitude, latitude: selected.latitude, scale: 9, markers } }
 }
 function getMapData(id) {
   const selected = getReservoir(id)
   return selected ? { selectedId: id, rings: selected.rings,
-    markers: reservoirs.map((r) => ({ id: r.id, longitude: r.lon, latitude: r.lat, name: r.name_cn })) } : null
+    markers: reservoirs.map((r) => { const basin = getBasin(r.id); return { id: r.id, longitude: r.lon, latitude: r.lat,
+      name: r.name_cn, basin: basin.name } }) } : null
 }
 module.exports = { meta, refresh, reset, hasRecentData, getReservoir, getReservoirList, getWeather, getWeatherCards,
-  getPass, getPasses, getBestPasses, getSatelliteOptions, getPlanGroups, buildPlanText, getMapData, buildNativeMapData }
+  getPass, getPasses, getBestPasses, getSatelliteOptions, getPlanGroups, buildPlanText, getBasins, getMapData, buildNativeMapData,
+  wgs84ToGcj02 }

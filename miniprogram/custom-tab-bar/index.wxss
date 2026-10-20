@@ -1,8 +1,24 @@
 :host { display: block; }
-.tab-bar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 1000; padding: 16rpx 24rpx; padding-bottom: calc(16rpx + constant(safe-area-inset-bottom)); padding-bottom: calc(16rpx + env(safe-area-inset-bottom)); background: #081b26; border-top: 1rpx solid #1c3949; box-shadow: 0 -8rpx 24rpx rgba(0, 0, 0, 0.12); }
-.tab-buttons { display: flex; gap: 14rpx; }
-.tab-button { flex: 1; min-width: 0; margin: 0; padding: 0 8rpx; height: 84rpx; display: flex; align-items: center; justify-content: center; box-sizing: border-box; border: 1rpx solid #234653; border-radius: 22rpx; background: #0c2734; color: #9bb8c6; font-size: 25rpx; font-weight: 500; line-height: 1.4; transition: background-color 180ms ease, border-color 180ms ease, color 180ms ease, transform 120ms ease; }
+.tab-bar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 1000; padding: 12rpx 24rpx; padding-bottom: calc(12rpx + constant(safe-area-inset-bottom)); padding-bottom: calc(12rpx + env(safe-area-inset-bottom)); background: #0a1923; border-top: 1rpx solid #294653; }
+.tab-buttons { display: flex; gap: 12rpx; }
+.tab-button { flex: 1; min-width: 0; margin: 0; padding: 8rpx; height: 92rpx; display: flex; flex-direction: column; align-items: center; justify-content: center; box-sizing: border-box; border: 1rpx solid #365462; border-radius: 24rpx; background: #081a22; color: #9fb3c1; font-size: 22rpx; font-weight: 500; line-height: 1.4; transition: background-color 140ms ease, border-color 140ms ease, color 140ms ease; }
 .tab-button::after { border: 0; }
-.tab-button.is-active { background: #123c3e; border-color: #2a8f86; color: #5eead4; font-weight: 650; }
-.tab-button-pressed { border-color: #5eead4; }
-@media (prefers-reduced-motion: reduce) { .tab-button { transition: none; } .tab-button-pressed { transform: none; } }
+.tab-button.is-active { background: #173640; border-color: #5e81ac; color: #a8d5df; font-weight: 650; }
+.tab-button-pressed { background: #244955; border-color: #8fbcbb; }
+.tab-label { margin-top: 5rpx; white-space: nowrap; }
+.tab-icon { position: relative; display: block; flex: 0 0 30rpx; width: 30rpx; height: 30rpx; box-sizing: border-box; }
+.icon-stroke { position: absolute; box-sizing: border-box; }
+.icon-0 { border-bottom: 2rpx solid currentColor; }
+.icon-0 .icon-stroke { bottom: 5rpx; width: 5rpx; border-radius: 2rpx; background: currentColor; }
+.icon-0 .stroke-one { left: 2rpx; height: 13rpx; }
+.icon-0 .stroke-two { left: 12rpx; height: 24rpx; }
+.icon-0 .stroke-three { right: 2rpx; height: 19rpx; }
+.icon-1 { width: 25rpx; border: 2rpx solid currentColor; border-radius: 5rpx; }
+.icon-1 .icon-stroke { left: 5rpx; right: 5rpx; height: 2rpx; background: currentColor; }
+.icon-1 .stroke-one { top: 7rpx; }
+.icon-1 .stroke-two { top: 13rpx; }
+.icon-1 .stroke-three { top: 19rpx; }
+.icon-2 { border: 2rpx solid currentColor; border-radius: 50%; }
+.icon-2 .stroke-one { left: 11rpx; top: 5rpx; width: 4rpx; height: 4rpx; border-radius: 50%; background: currentColor; }
+.icon-2 .stroke-two { left: 11rpx; top: 12rpx; width: 4rpx; height: 10rpx; border-radius: 2rpx; background: currentColor; }
+@media (prefers-reduced-motion: reduce) { .tab-button { transition: none; } }

@@ -1,6 +1,7 @@
 {
   "pages": [
     "pages/dashboard/dashboard",
+    "pages/sampling/sampling",
     "pages/plan/plan",
     "pages/about/about",
     "pages/pass/pass",
@@ -8,7 +9,7 @@
   ],
   "window": {
     "navigationBarTitleText": "星地同步实验助手",
-    "navigationBarBackgroundColor": "#081b26",
+    "navigationBarBackgroundColor": "#0a1923",
     "navigationBarTextStyle": "white",
     "backgroundColor": "#06141d",
     "backgroundColorTop": "#06141d",
@@ -17,9 +18,9 @@
   },
   "tabBar": {
     "custom": true,
-    "color": "#88a6b5",
-    "selectedColor": "#2dd4bf",
-    "backgroundColor": "#081b26",
+    "color": "#91a7b5",
+    "selectedColor": "#88c0d0",
+    "backgroundColor": "#0a1923",
     "borderStyle": "black",
     "list": [
       { "pagePath": "pages/dashboard/dashboard", "text": "水库观测" },

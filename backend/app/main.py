@@ -53,7 +53,7 @@ async def lifespan(_: FastAPI):
 app = FastAPI(
     title="河南省省控水库遥感观测 API",
     version=APP_VERSION,
-    description="为25座省控水库网页提供空间数据、天气缓存、卫星窗口和透明评分接口。",
+    description="为26座河南典型水库网页提供空间数据、天气缓存、卫星窗口和透明评分接口。",
     lifespan=lifespan,
 )
 app.add_middleware(

@@ -10,7 +10,7 @@ if not exist "%PYTHON%" (
   exit /b 1
 )
 
-echo 正在刷新25座水库最近90天的Sentinel-2和Landsat目录……
+echo 正在刷新26座水库最近90天的Sentinel-2和Landsat目录……
 echo 该过程需要访问官方目录，可能持续数分钟。
 "%PYTHON%" -m backend.app.tasks.refresh_all_imagery --days 90 --limit-per-source 500
 echo.

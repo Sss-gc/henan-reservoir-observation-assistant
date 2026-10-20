@@ -18,7 +18,11 @@ function wrangler(args, input) {
   })
 }
 const manifest = JSON.parse(await fs.readFile(path.join(root, 'mini-static/dist/data/manifest.json'), 'utf8'))
-if (manifest.pipeline !== 'miniprogram-static-independent-v1' || Object.keys(manifest.documents).length !== 26) throw new Error('独立数据及26份Word必须完整生成后才能部署')
+const reservoirCount = JSON.parse(await fs.readFile(path.join(root, 'public/data/reservoirs.geojson'), 'utf8')).features.length
+const documentCount = reservoirCount + 1
+if (manifest.pipeline !== 'miniprogram-static-independent-v1' || Object.keys(manifest.documents).length !== documentCount) {
+  throw new Error(`独立数据及${documentCount}份Word必须完整生成后才能部署`)
+}
 const published = await wrangler(['deploy'])
 if (process.env.CI) process.exit(0) // CI updates the independent static version; no login secrets are required.
 const hostname = published.match(/https:\/\/[a-z0-9.-]+\.workers\.dev\b/i)?.[0]

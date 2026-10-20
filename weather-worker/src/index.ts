@@ -26,7 +26,7 @@ export function hasCurrentStaticWeather(payload: unknown, now = new Date()) {
     fetchedAt?: unknown; publishedAt?: unknown; days?: unknown
   }>)
   const today = beijingDay(now.toISOString())
-  return items.length === 25 && items.every((item) =>
+  return items.length === RESERVOIR_STATIONS.length && items.every((item) =>
     typeof item.fetchedAt === 'string' && beijingDay(item.fetchedAt) === today &&
     typeof item.publishedAt === 'string' && beijingDay(item.publishedAt) === today &&
     Array.isArray(item.days) && item.days.length === 7)
@@ -66,8 +66,8 @@ export async function refreshWeather(env: Env, now = new Date()) {
   const snapshot = await buildWeatherSnapshot((milliseconds) => scheduler.wait(milliseconds), now, previous)
   await env.WEATHER_KV.put(WEATHER_SNAPSHOT_KEY, JSON.stringify(snapshot))
   console.log(JSON.stringify({
-    event: 'weather_refresh_complete', reservoirs: 25,
-    updatedReservoirs: 25 - snapshot.staleReservoirIds.length,
+    event: 'weather_refresh_complete', reservoirs: RESERVOIR_STATIONS.length,
+    updatedReservoirs: RESERVOIR_STATIONS.length - snapshot.staleReservoirIds.length,
     staleReservoirs: snapshot.staleReservoirIds.length,
     stations: new Set(RESERVOIR_STATIONS.map((item) => item.slug)).size,
     generatedAt: snapshot.generatedAt,

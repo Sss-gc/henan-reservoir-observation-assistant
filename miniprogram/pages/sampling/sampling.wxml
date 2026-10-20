@@ -1,0 +1,34 @@
+<page-meta background-color="#06141d" background-color-top="#06141d" background-color-bottom="#06141d" root-background-color="#06141d" page-style="background-color: #06141d;" />
+<view class="page" wx:if="{{selected && plan}}">
+  <view class="eyebrow">WATER SAMPLING DESIGN</view>
+  <view class="title-line">
+    <view><view class="title">{{selected.name_cn}}</view><view class="subtitle">{{selected.city}} · {{selected.basin}} · 河南库区 {{selected.area_km2}} km²</view></view>
+    <text class="source-badge {{plan.source === 'reference' ? 'reference' : ''}}">{{plan.referenceBasis || '智能设计'}}</text>
+  </view>
+
+  <view class="card map-card">
+    <map id="sampling-map" class="sampling-map" longitude="{{map.longitude}}" latitude="{{map.latitude}}" scale="{{map.scale}}" min-scale="5" max-scale="18" markers="{{map.markers}}" polyline="{{map.polyline}}" enable-zoom="{{true}}" enable-scroll="{{true}}" show-compass="{{true}}" show-scale="{{true}}"></map>
+    <view class="map-toolbar"><text class="section-note">虚线按编号连接，表示建议作业顺序</text><view class="map-toolbar-actions"><button class="text-button" size="mini" bindtap="fitMap">适配点位</button></view></view>
+  </view>
+
+  <view class="card control-card">
+    <view class="row"><view><view class="section-title">采样点数量</view><view class="section-note">可按船时与实验强度调整</view></view><view class="count-control"><button size="mini" disabled="{{count == 6}}" bindtap="decreaseCount">−</button><text>{{count}}</text><button size="mini" disabled="{{count >= maxPointCount}}" bindtap="increaseCount">＋</button></view></view>
+    <view class="metrics">
+      <view><text>{{plan.routeDistanceKm}}</text><view>编号路线 km</view></view>
+      <view><text>{{plan.meanSpacingKm}}</text><view>平均间距 km</view></view>
+      <view><text>{{plan.shorelineBufferM}}</text><view>建议离岸 m</view></view>
+    </view>
+    <button wx:if="{{count !== defaultCount}}" class="secondary restore-button" bindtap="restoreDefault">恢复默认 {{defaultCount}} 点</button>
+  </view>
+
+  <view class="card rules-card">
+    <view class="row"><view class="section-title">设计依据</view><text class="pill">6–{{maxPointCount}} 点</text></view>
+    <view class="rule"><text>01</text><view><view>沿主水道分段</view><view class="section-note">从库尾、入库河段到库心和坝前连续覆盖</view></view></view>
+    <view class="rule"><text>02</text><view><view>两侧交替与支汊补点</view><view class="section-note">避免只沿中线布点，兼顾横向差异和分支水域</view></view></view>
+    <view class="rule"><text>03</text><view><view>按作业路线编号</view><view class="section-note">减少重复折返；调整数量后会重新计算整套布局</view></view></view>
+  </view>
+
+  <view wx:if="{{exportError}}" class="preview-banner">{{exportError}}</view>
+  <button class="primary export-button" loading="{{exportLoading}}" disabled="{{exportLoading}}" bindtap="exportKml">{{exportLoading ? '正在生成…' : '导出并分享 KML（奥维）'}}</button>
+  <view class="footnote">导出文件保留原始经纬度，并写入奥维使用的 CGCS2000 标记。点位和编号连线仅用于实验设计，不等同于船舶安全航线；出发前仍需结合水位、岸线、禁航区和现场条件复核。</view>
+</view>

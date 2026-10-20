@@ -1,7 +1,7 @@
-<view class="tab-bar">
+<view class="tab-bar" hidden="{{hidden}}">
   <view class="tab-buttons">
     <button wx:for="{{tabs}}" wx:key="pagePath" class="tab-button {{selected === index ? 'is-active' : ''}}" data-index="{{index}}" bindtap="switchTab" hover-class="tab-button-pressed" hover-stay-time="80" aria-label="{{item.text}}" aria-role="button">
-      <text>{{item.text}}</text>
+      <view class="tab-icon icon-{{index}}" aria-hidden="true"><view class="icon-stroke stroke-one"></view><view class="icon-stroke stroke-two"></view><view class="icon-stroke stroke-three"></view></view><text class="tab-label">{{item.text}}</text>
     </button>
   </view>
 </view>

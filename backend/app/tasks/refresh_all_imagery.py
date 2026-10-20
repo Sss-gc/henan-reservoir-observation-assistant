@@ -8,7 +8,7 @@ from ..services.imagery import refresh_all_products
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="批量刷新25座水库的实际影像产品")
+    parser = argparse.ArgumentParser(description="批量刷新26座水库的实际影像产品")
     parser.add_argument("--days", type=int, default=90)
     parser.add_argument("--limit-per-source", type=int, default=500)
     args = parser.parse_args()

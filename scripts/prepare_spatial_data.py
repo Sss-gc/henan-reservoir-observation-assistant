@@ -25,6 +25,7 @@ PROVINCE_SHP = SOURCE_ROOT / "2024河流湖泊" / "河南省水域线" / "河南
 DANJIANG_HANJIANG_SHP = SOURCE_ROOT / "2024河流湖泊" / "丹江口水库" / "汉江.shp"
 OUTPUT_DIR = PROJECT_ROOT / "public" / "data"
 VALIDATION_DIR = PROJECT_ROOT / "data" / "source_validation"
+XIAONANHAI_GEOJSON = VALIDATION_DIR / "xiaonanhai-reservoir.geojson"
 GEOD = Geod(ellps="WGS84")
 
 OFFICIAL_CITY_BY_NAME = {
@@ -53,6 +54,7 @@ OFFICIAL_CITY_BY_NAME = {
     "薄山水库": "驻马店市",
     "丹江口水库": "南阳市",
     "白沙水库": "许昌市",
+    "小南海水库": "安阳市",
 }
 
 CROSS_CITY_DISPLAY = {
@@ -133,7 +135,7 @@ def load_online_validation():
 def main():
     missing = [
         str(path)
-        for path in (RESERVOIR_SHP, CITY_SHP, PROVINCE_SHP, DANJIANG_HANJIANG_SHP)
+        for path in (RESERVOIR_SHP, CITY_SHP, PROVINCE_SHP, DANJIANG_HANJIANG_SHP, XIAONANHAI_GEOJSON)
         if not path.exists()
     ]
     if missing:
@@ -243,6 +245,49 @@ def main():
                 }
             )
 
+    xiaonanhai_source = json.loads(XIAONANHAI_GEOJSON.read_text(encoding="utf-8"))["features"][0]
+    xiaonanhai_geom = polygonal_only(make_valid(shape(xiaonanhai_source["geometry"])))
+    xiaonanhai_point = xiaonanhai_geom.representative_point()
+    xiaonanhai_area_m2, _ = GEOD.geometry_area_perimeter(xiaonanhai_geom)
+    xiaonanhai_cities = city_intersections(xiaonanhai_geom, cities)
+    xiaonanhai_properties = xiaonanhai_source["properties"]
+    reservoir_features.append(
+        feature(
+            xiaonanhai_geom.simplify(0.0006, preserve_topology=True),
+            {
+                "id": "HN_RSV_026",
+                "code": "HN_RSV_026",
+                "name_cn": "小南海水库",
+                "city": "安阳市",
+                "city_official": "安阳市",
+                "city_spatial_primary": xiaonanhai_cities[0]["name"] if xiaonanhai_cities else "安阳市",
+                "city_spatial_intersections": xiaonanhai_cities,
+                "lon": round(xiaonanhai_point.x, 6),
+                "lat": round(xiaonanhai_point.y, 6),
+                "area_km2": round(abs(xiaonanhai_area_m2) / 1_000_000, 2),
+                "area_definition": "OSM水面几何的WGS84椭球面积；随边界数据时相和水位变化",
+                "center_method": "polygon_representative_point",
+                "osm_id": str(xiaonanhai_properties["osm_id"]),
+                "feature_class": "water",
+                "data_source": "OpenStreetMap relation 4433332（补充水面边界）",
+                "geometry_status": "verified-valid-supplemented",
+                "online_name": "小南海水库",
+                "online_display_name": "小南海水库, 龙安区, 安阳市, 河南省, 中国",
+                "online_center_offset_m": 0.0,
+                "online_validation_status": "matched-by-osm-id",
+            },
+        )
+    )
+    quality_notes.append(
+        {
+            "code": "HN_RSV_026",
+            "field": "geometry",
+            "status": "supplemented-from-versioned-osm-source",
+            "note": "原25库SHP不含小南海水库；经用户确认扩充名单，采用OSM relation 4433332水面边界，并以河南省、安阳市公开资料核验名称和位置。",
+            "source": str(XIAONANHAI_GEOJSON),
+        }
+    )
+
     report = {
         "reservoir_count": len(reservoir_features),
         "crs": "EPSG:4326",
@@ -250,6 +295,7 @@ def main():
         "city_boundary_source": str(CITY_SHP),
         "province_boundary_source": str(PROVINCE_SHP),
         "danjiang_hanjiang_source": str(DANJIANG_HANJIANG_SHP),
+        "xiaonanhai_source": str(XIAONANHAI_GEOJSON),
         "review_number": "GS（2024）0650号（行政区边界来源目录标识）",
         "online_validation": {
             "matched_osm_records": sum(
@@ -273,8 +319,8 @@ def main():
     write_json(OUTPUT_DIR / "data-quality-report.json", report)
 
     print(json.dumps(report, ensure_ascii=False, indent=2))
-    if len(reservoir_features) != 25:
-        raise RuntimeError(f"Expected 25 reservoirs, got {len(reservoir_features)}")
+    if len(reservoir_features) < 26:
+        raise RuntimeError(f"Expected at least 26 reservoirs, got {len(reservoir_features)}")
 
 
 if __name__ == "__main__":

@@ -105,7 +105,7 @@ Cloudflare 的 Git 集成会在每次 `main` 分支更新后自动重新部署�
 
 ## 微信小程序
 
-原生工程见 [miniprogram/README.md](miniprogram/README.md)，独立静态服务见 [mini-static/README.md](mini-static/README.md)。按用户要求，小程序改为免登录，打开即可使用；天气、轨道与26份Word由专属定时任务生成，不使用CloudBase或网站运行数据。腾讯地图仅显示水库标记，网页继续使用天地图及原有登录。静态文件地址公开可读。用户已确认保存新域名；免登录客户端手机联调和1.1.0体验版更新仍待完成。原1.0.0的手机验收属于旧CloudBase版本。
+原生工程见 [miniprogram/README.md](miniprogram/README.md)，独立静态服务见 [mini-static/README.md](mini-static/README.md)。按用户要求，小程序改为免登录，打开即可使用；26座水库的天气、轨道与27份Word由专属定时任务生成，不使用CloudBase或网站运行数据。腾讯地图仅显示水库标记，网页继续使用天地图及原有登录。静态文件地址公开可读。用户已确认保存新域名；免登录客户端手机联调和1.1.0体验版更新仍待完成。原1.0.0的手机验收属于旧CloudBase版本。
 
 ```powershell
 pnpm miniprogram:prepare

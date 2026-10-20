@@ -5,7 +5,8 @@
     <view class="title detail-title">{{pass.satellite}}</view>
     <view class="subtitle">{{pass.reservoirName}} · {{pass.sensor}}</view>
     <view class="card time-card">
-      <view class="section-note">{{pass.dateLabel}} · {{pass.date}}</view><view class="overpass-time">{{pass.time}}<text>北京时间</text></view>
+      <view class="overpass-date-row"><text class="overpass-date">{{pass.fullDateLabel}}</text><text class="overpass-weekday">{{pass.weekdayLabel}}</text></view>
+      <view class="overpass-time-row"><text class="overpass-time">{{pass.time}}</text><text class="overpass-time-label">北京时间</text></view>
       <view class="row"><text class="pill">完整覆盖 {{pass.coverage}}%</text><text class="pill slate">{{pass.resolution_m}} m 分辨率</text></view>
     </view>
     <view class="card">

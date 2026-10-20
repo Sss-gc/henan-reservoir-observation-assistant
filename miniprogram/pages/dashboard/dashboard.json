@@ -1,4 +1,8 @@
 {
   "navigationBarTitleText": "水库观测",
+  "navigationBarBackgroundColor": "#0a1923",
+  "navigationBarTextStyle": "white",
+  "backgroundColor": "#06141d",
+  "backgroundTextStyle": "light",
   "enablePullDownRefresh": true
 }

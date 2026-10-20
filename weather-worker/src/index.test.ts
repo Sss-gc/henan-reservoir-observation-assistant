@@ -19,7 +19,7 @@ describe('NMC text forecast parser', () => {
 
   it('rejects incomplete or blocked pages and maps every reservoir once', () => {
     expect(() => parseNmcForecast('<title>中央气象台-404错误页面</title>')).toThrow()
-    expect(new Set(RESERVOIR_STATIONS.map((item) => item.reservoirId)).size).toBe(25)
+    expect(new Set(RESERVOIR_STATIONS.map((item) => item.reservoirId)).size).toBe(26)
   })
 
   it('marks an already elapsed daytime slot without rejecting the daily cache', () => {
@@ -41,6 +41,11 @@ describe('NMC text forecast parser', () => {
           publishedAt: '2026-09-13T08:00:00+08:00', fetchedAt: '2026-09-13T01:00:00.000Z',
           forecast: [previousDay],
         },
+        HN_RSV_026: {
+          reservoirId: 'HN_RSV_026', stationName: '安阳', sourceUrl: 'https://www.nmc.cn/old',
+          publishedAt: '2026-09-13T08:00:00+08:00', fetchedAt: '2026-09-13T01:00:00.000Z',
+          forecast: [previousDay],
+        },
       },
     } satisfies WeatherSnapshot
     const html = `发布时间：09-14 08:00<div id=day7>${[
@@ -57,8 +62,8 @@ describe('NMC text forecast parser', () => {
     }) as typeof fetch
 
     const snapshot = await buildWeatherSnapshot(async () => {}, new Date('2026-09-14T01:00:00Z'), previous, fetcher)
-    expect(Object.keys(snapshot.reservoirs)).toHaveLength(25)
-    expect(snapshot.staleReservoirIds).toEqual(['HN_RSV_001'])
+    expect(Object.keys(snapshot.reservoirs)).toHaveLength(26)
+    expect(snapshot.staleReservoirIds).toEqual(['HN_RSV_001', 'HN_RSV_026'])
     expect(snapshot.reservoirs.HN_RSV_001.forecast).toEqual([previousDay])
     expect(snapshot.reservoirs.HN_RSV_001.fetchedAt).toBe('2026-09-13T01:00:00.000Z')
     expect(snapshot.reservoirs.HN_RSV_002.forecast[0].date).toBe('2026-09-14')
@@ -72,7 +77,7 @@ describe('NMC text forecast parser', () => {
 
 const staticWeather = (publishedAt = '2026-10-20T08:00:00+08:00') => ({
   pipeline: 'miniprogram-static-independent-v1', source: '中央气象台', generatedAt: '2026-10-20T00:05:00Z',
-  items: Object.fromEntries(Array.from({ length: 25 }, (_, index) => [String(index), {
+  items: Object.fromEntries(Array.from({ length: RESERVOIR_STATIONS.length }, (_, index) => [String(index), {
     fetchedAt: '2026-10-20T00:05:00Z', publishedAt,
     days: Array.from({ length: 7 }, (_, day) => ({ date: `2026-10-${String(20 + day).padStart(2, '0')}` })),
   }])),
@@ -81,7 +86,7 @@ const staticWeather = (publishedAt = '2026-10-20T08:00:00+08:00') => ({
 describe('independent mini-program refresh watchdog', () => {
   const now = new Date('2026-10-20T00:10:00Z')
 
-  it('recognizes only a complete current 25-station static batch', () => {
+  it('recognizes only a complete current reservoir weather batch', () => {
     expect(hasCurrentStaticWeather(staticWeather(), now)).toBe(true)
     expect(hasCurrentStaticWeather(staticWeather('2026-10-19T20:00:00+08:00'), now)).toBe(false)
     expect(hasCurrentStaticWeather({ ...staticWeather(), items: {} }, now)).toBe(false)

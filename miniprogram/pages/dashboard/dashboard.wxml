@@ -1,41 +1,68 @@
-<view class="page tab-page" wx:if="{{selected}}">
+<page-meta background-color="#06141d" background-color-top="#06141d" background-color-bottom="#06141d" root-background-color="#06141d" page-style="background-color: #06141d;" />
+<view class="point-fullscreen" wx:if="{{pointPreviewOpen && selected && pointPlan && pointMap}}">
+  <view class="point-fullscreen-header"><button class="point-back-button" bindtap="closeSamplingPreview">‹</button><picker class="point-reservoir-picker" mode="selector" range="{{reservoirs}}" range-key="pickerLabel" value="{{pointReservoirIndex}}" bindchange="selectPointReservoir"><view class="point-reservoir-trigger"><view class="point-reservoir-copy"><view class="point-header-title">{{selected.name_cn}} · {{pointPlan.count}}点</view><view class="point-header-note">河南库区 · {{pointPlan.samplingAreaKm2}} km² · 点击切换水库</view></view><view class="point-switch-label">切换⌄</view></view></picker></view>
+  <view class="point-scheme-panel">
+    <scroll-view scroll-x="{{true}}" class="point-scheme-strip" enhanced="{{true}}" show-scrollbar="{{false}}">
+      <view wx:for="{{pointSchemes}}" wx:key="id" class="point-scheme-option {{pointSchemeId === item.id ? 'active' : ''}}" data-id="{{item.id}}" bindtap="selectPointScheme" role="button" aria-label="选择{{item.label}}方案，{{item.count}}点" hover-class="interactive-pressed" hover-stay-time="80">
+        <view class="point-scheme-name"><text>{{item.label}}</text><text class="point-scheme-badge">{{item.badge}}</text></view>
+        <view class="point-scheme-count">{{item.count}} 点</view>
+      </view>
+    </scroll-view>
+    <view class="point-scheme-summary"><text>{{pointPlan.schemeDescription}}</text><text wx:if="{{pointPlan.source === 'generated'}}"> · 自适应离岸 {{pointPlan.shorelineBufferM}} m</text><text wx:elif="{{pointPlan.source === 'reference'}}"> · 保留原点号与顺序</text></view>
+    <view wx:if="{{pointPlan.accessVerificationRequired}}" class="point-buffer-warning">这些点仅是沿真实岸线生成的岸边可达候选；道路、坡岸、围栏及管制条件仍须现场复核。</view>
+  </view>
+  <map id="sampling-full-map" class="point-fullscreen-map" longitude="{{pointMap.longitude}}" latitude="{{pointMap.latitude}}" scale="{{pointMap.scale}}" min-scale="5" max-scale="19" markers="{{pointMap.markers}}" polyline="{{pointMap.polyline}}" enable-zoom="{{true}}" enable-scroll="{{true}}" enable-rotate="{{false}}" show-compass="{{false}}" show-scale="{{true}}"></map>
+  <view class="point-fullscreen-footer">
+    <view class="point-preview-note">将导出：{{pointPlan.schemeLabel}} · {{pointPlan.count}} 点；虚线仅表示编号顺序，不是安全航线</view>
+    <view class="point-footer-actions"><view class="point-count-control"><button disabled="{{!pointSchemeAdjustable || pointCount == 6}}" bindtap="decreasePointCount">−</button><text>{{pointCount}} 点{{pointSchemeAdjustable ? '' : ' · 固定'}}</text><button disabled="{{!pointSchemeAdjustable || pointCount >= maxPointCount}}" bindtap="increasePointCount">＋</button></view><button class="point-export-button" loading="{{pointExportLoading}}" disabled="{{pointExportLoading}}" bindtap="exportPointKml">{{pointExportLoading ? '生成中…' : '导出当前方案'}}</button></view>
+    <view wx:if="{{pointExportError}}" class="point-export-error">{{pointExportError}}</view>
+  </view>
+</view>
+<view class="page tab-page" wx:elif="{{selected}}">
   <view class="row hero">
     <view><view class="eyebrow">RESERVOIR FIELD LAB</view><view class="title">星地同步实验助手</view></view>
     <view class="brand-mark"><view class="brand-icon"></view></view>
   </view>
-  <view class="subtitle">让卫星过境与晴好天气在水库相遇</view>
-  <view class="data-banner">{{loading ? '正在获取云端数据…' : '独立数据：中央气象台 · 卫星轨道预测'}}</view>
   <view wx:if="{{syncError || meta.orbitError || meta.weatherError}}" class="preview-banner">{{syncError || meta.orbitError || meta.weatherError}}。下拉页面可重新同步。</view>
   <view wx:if="{{meta.orbitStale || meta.weatherStale}}" class="preview-banner">云端数据尚未全部更新至今日，下拉页面可重新同步。</view>
 
   <view class="search-box row">
     <text class="search-icon">⌕</text>
-    <input value="{{keyword}}" placeholder="搜索水库、城市或编号" placeholder-class="search-placeholder" bindinput="onSearch" bindfocus="openPicker" confirm-type="search" />
+    <input value="{{keyword}}" placeholder="搜索水库、城市、流域" placeholder-class="search-placeholder" bindinput="onSearch" bindfocus="openPicker" confirm-type="search" />
     <button class="text-button" size="mini" bindtap="togglePicker">{{pickerOpen ? '收起' : '切换'}}</button>
   </view>
   <view class="picker-panel" wx:if="{{pickerOpen}}">
     <view class="picker-summary muted small">共 {{filteredReservoirs.length}} 座水库</view>
     <scroll-view scroll-y="{{true}}" class="reservoir-list">
-      <view wx:for="{{filteredReservoirs}}" wx:key="id" class="reservoir-option row {{selected.id === item.id ? 'selected-option' : ''}}" data-id="{{item.id}}" bindtap="selectReservoir">
-        <view><view>{{item.name_cn}}</view><view class="muted small">{{item.city}} · {{item.area_km2}} km²</view></view><text class="accent">{{selected.id === item.id ? '已选' : '›'}}</text>
-      </view>
+      <block wx:for="{{filteredReservoirs}}" wx:key="id">
+        <view wx:if="{{item.showBasinHeader}}" class="picker-basin-section"><text>{{item.basin}}</text><text class="picker-basin-count">{{item.basinResultCount}}座</text></view>
+        <view class="reservoir-option row {{selected.id === item.id ? 'selected-option' : ''}}" data-id="{{item.id}}" bindtap="selectReservoir" hover-class="interactive-pressed" hover-stay-time="80">
+          <view class="reservoir-option-main"><view class="reservoir-option-title"><text>{{item.name_cn}}</text><text class="basin-badge">{{item.basin}}</text></view><view class="muted small">{{item.city}} · {{item.area_km2}} km²</view></view><text class="accent">{{selected.id === item.id ? '已选' : '›'}}</text>
+        </view>
+      </block>
       <view wx:if="{{!filteredReservoirs.length}}" class="empty">没有找到匹配的水库</view>
     </scroll-view>
   </view>
 
   <view class="card reservoir-card">
-    <view class="row"><view><view class="section-note">当前水库 · {{selected.city}}</view><view class="reservoir-name">{{selected.name_cn}}</view></view><view class="area"><text>{{selected.area_km2}}</text><view>参考面积 km²</view></view></view>
-    <view hidden="{{pickerOpen}}" class="reservoir-map" style="width:100%;height:410rpx;">
-      <map id="reservoir-map" class="native-map" style="display:block;width:100%;height:410rpx;" longitude="{{map.longitude}}" latitude="{{map.latitude}}" scale="{{map.scale}}" min-scale="4" max-scale="18" markers="{{map.markers}}" enable-zoom="{{true}}" enable-scroll="{{true}}" show-compass="{{true}}" show-scale="{{true}}" bindmarkertap="selectMarker" bindcallouttap="selectMarker" />
+    <view class="reservoir-summary"><view class="reservoir-heading"><view class="section-note reservoir-location">当前水库 · {{selected.city}}</view><view class="reservoir-name-line"><view class="reservoir-name">{{selected.name_cn}}</view><view class="current-basin">{{selected.basin}}</view></view></view><view class="sampling-preview-button" role="button" aria-label="打开点位设计" catchtap="openSamplingPreview" hover-class="interactive-pressed" hover-stay-time="80">点位设计</view><view class="area"><text>{{selected.area_km2}}</text><view>河南库区 km²</view></view></view>
+    <view hidden="{{pickerOpen}}" class="reservoir-map" style="width:100%;height:470rpx;">
+      <map id="reservoir-map" class="native-map" style="display:block;width:100%;height:470rpx;" longitude="{{map.longitude}}" latitude="{{map.latitude}}" scale="{{map.scale}}" min-scale="4" max-scale="18" markers="{{map.markers}}" enable-zoom="{{true}}" enable-scroll="{{true}}" show-compass="{{true}}" show-scale="{{true}}" bindmarkertap="selectMarker" bindcallouttap="selectMarker">
+        <cover-view class="basin-map-legend">
+          <cover-view class="basin-legend-title">四大流域</cover-view>
+          <cover-view wx:for="{{basins}}" wx:key="name" class="basin-legend-item {{activeBasin === item.name ? 'active' : ''}}" data-basin="{{item.name}}" bindtap="focusBasin">
+            <cover-view class="basin-legend-name">{{item.name}} · {{item.count}}</cover-view>
+          </cover-view>
+        </cover-view>
+      </map>
     </view>
     <view class="map-footer">
-      <text class="map-caption muted small">腾讯地图 · 水库位置</text>
-      <view class="map-actions"><button class="text-button map-zoom-button" size="mini" bindtap="zoomMapIn">＋</button><button class="text-button map-zoom-button" size="mini" bindtap="zoomMapOut">−</button><button class="text-button" size="mini" bindtap="overviewMap">全部水库</button><button class="text-button" size="mini" bindtap="fitMap">定位当前</button></view>
+      <view class="map-actions"><view class="map-zoom-controls"><button class="text-button map-zoom-button" size="mini" bindtap="zoomMapIn" aria-label="放大地图">＋</button><button class="text-button map-zoom-button" size="mini" bindtap="zoomMapOut" aria-label="缩小地图">−</button></view><view class="map-location-controls"><button class="text-button" size="mini" bindtap="overviewMap">全部水库</button><button class="text-button" size="mini" bindtap="fitMap">定位当前</button></view></view>
     </view>
   </view>
 
   <view class="card weather-card">
-    <view class="row"><view class="section-title">7 天天气</view><text class="pill">中央气象台</text></view>
+    <view class="row"><view class="section-title">未来 7 天天气</view><text class="pill">中央气象台</text></view>
     <view wx:if="{{weather}}" class="section-note"><text class="weather-source-link" bindtap="showWeatherSource">{{weather.stationName}}站</text><text> · 发布 {{weatherPublishedDate}}</text></view>
     <view wx:if="{{!weatherDays.length}}" class="empty">{{loading ? '正在读取独立数据天气…' : (meta.weatherError || '该水库天气尚未获取，下拉可重试。')}}</view>
     <scroll-view scroll-x="{{true}}" class="weather-strip" enhanced="{{true}}" show-scrollbar="{{false}}">
@@ -45,17 +72,16 @@
     </scroll-view>
   </view>
 
+  <view class="satellite-heading"><text class="section-title">观测机会</text><text class="muted small">按卫星筛选</text></view>
   <scroll-view scroll-x="{{true}}" class="chip-strip" enhanced="{{true}}" show-scrollbar="{{false}}">
-    <view wx:for="{{satellites}}" wx:key="*this" class="chip {{satellite === item ? 'active' : ''}}" data-name="{{item}}" bindtap="selectSatellite">{{item}}</view>
+    <view wx:for="{{satellites}}" wx:key="*this" class="chip {{satellite === item ? 'active' : ''}}" data-name="{{item}}" bindtap="selectSatellite" hover-class="interactive-pressed" hover-stay-time="80">{{item}}</view>
   </scroll-view>
 
   <view class="card recommendations-card">
     <view class="row"><view class="section-title">晴天实验推荐</view><text class="pill">晴天匹配</text></view>
     <view class="section-note">白天严格为“晴” · 耀光风险单独提示</view>
-    <view wx:for="{{recommendations}}" wx:key="id" class="recommendation" data-id="{{item.id}}" bindtap="openPass">
-      <view class="row"><text class="pass-satellite">{{item.satellite}}</text><text class="recommendation-score">{{item.score}}<text class="small"> 分</text></text></view>
-      <view class="pass-date">{{item.dateLabel}} <text class="accent">{{item.time}}</text></view>
-      <view class="row"><text class="muted small">白天晴 · 完整覆盖</text><text class="small risk-{{item.glint_risk}}">耀光{{item.glintLabel}} {{item.glintAngle}}° ›</text></view>
+    <view wx:for="{{recommendations}}" wx:key="id" class="recommendation" data-id="{{item.id}}" bindtap="openPass" hover-class="interactive-pressed" hover-stay-time="80">
+      <view class="recommendation-body"><view class="row"><text class="pass-satellite">{{item.satellite}}</text><text class="recommendation-score">{{item.score}}<text class="score-unit">分</text></text></view><view class="opportunity-date">{{item.dateLabel}}</view><view class="recommendation-tags"><text class="recommendation-tag">晴 · 完整覆盖</text><text class="small risk-{{item.glint_risk}}">耀光{{item.glintLabel}} {{item.glintAngle}}°</text></view></view><text class="card-chevron">›</text>
     </view>
     <view wx:if="{{!recommendations.length}}" class="empty">{{loading ? '正在匹配天气与过境窗口…' : (!weather ? '天气尚未获取，暂不能判断晴天窗口。' : '当前筛选没有符合晴天条件的完整覆盖窗口。')}}</view>
     <button class="primary plan-button" bindtap="openPlan">查看实验方案</button>
@@ -65,15 +91,13 @@
     <view class="row"><view class="section-title">卫星过境窗口</view><text class="muted small">{{passTotal}} 条</text></view>
     <view class="section-note">轨道日期 {{meta.orbitStartDate || '未获取'}} — {{meta.orbitEndDate || '未获取'}}</view>
     <view class="status-filters">
-      <view wx:for="{{['全部', '仅晴天', '待预报']}}" wx:key="*this" class="status-filter {{passFilter === item ? 'active' : ''}}" data-name="{{item}}" bindtap="selectPassFilter">{{item}}</view>
+      <view wx:for="{{['全部', '仅晴天', '待预报']}}" wx:key="*this" class="status-filter {{passFilter === item ? 'active' : ''}}" data-name="{{item}}" bindtap="selectPassFilter" hover-class="interactive-pressed" hover-stay-time="80">{{item}}</view>
     </view>
-    <view wx:for="{{passes}}" wx:key="id" class="pass-row" data-id="{{item.id}}" bindtap="openPass">
-      <view class="row"><text class="pass-satellite">{{item.satellite}}</text><text class="small level-{{item.levelTone}}">{{item.level}} ›</text></view>
-      <view class="row pass-date"><text>{{item.dateLabel}} {{item.time}}</text><text class="small risk-{{item.glint_risk}}">耀光{{item.glintLabel}}</text></view>
-      <view class="muted small">{{item.sensor}} · {{item.resolution_m}} m · 完整覆盖</view>
+    <view wx:for="{{passes}}" wx:key="id" class="pass-row" data-id="{{item.id}}" bindtap="openPass" hover-class="interactive-pressed" hover-stay-time="80">
+      <view class="pass-timeline"><view class="timeline-dot"></view><view class="timeline-line"></view></view><view class="pass-row-content"><view class="row"><text class="pass-date pass-date-primary">{{item.dateLabel}}</text><text class="small level-{{item.levelTone}}">{{item.level}} ›</text></view><view class="pass-main"><text class="pass-satellite">{{item.satellite}}</text></view><view class="pass-meta"><text>{{item.sensor}} · {{item.resolution_m}} m · 完整覆盖</text><text class="risk-{{item.glint_risk}}">耀光{{item.glintLabel}}</text></view></view>
     </view>
     <view wx:if="{{!passes.length}}" class="empty">{{loading ? '正在读取独立数据轨道…' : (meta.orbitError || '当前筛选下没有窗口')}}</view>
     <button wx:if="{{passTotal > passes.length}}" class="secondary load-more" bindtap="loadMore">继续查看（{{passes.length}} / {{passTotal}}）</button>
   </view>
-  <view class="footnote">过境日期与时刻为北京时间。窗口表示几何覆盖，不代表已安排成像；HJ-2B 为四台 CCD 相机的拼接覆盖。天气与轨道由独立任务更新，请核验来源更新时间。</view>
+  <view class="footnote">过境日期按北京时间显示，具体时刻可进入详情查看。窗口表示几何覆盖，不代表已安排成像；HJ-2B 为四台 CCD 相机的拼接覆盖。天气与轨道由独立任务更新，请核验来源更新时间。</view>
 </view>

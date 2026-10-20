@@ -46,6 +46,7 @@ export const RESERVOIR_STATIONS: ReservoirStation[] = [
   { reservoirId: 'HN_RSV_023', stationName: '确山', slug: 'queshan' },
   { reservoirId: 'HN_RSV_024', stationName: '淅川', slug: 'zuochuan2' },
   { reservoirId: 'HN_RSV_025', stationName: '禹州', slug: 'yuzhou' },
+  { reservoirId: 'HN_RSV_026', stationName: '安阳', slug: 'anyang' },
 ]
 
 function plainText(value: string) {

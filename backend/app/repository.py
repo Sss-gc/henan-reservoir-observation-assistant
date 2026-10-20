@@ -13,8 +13,14 @@ def reservoir_collection() -> dict[str, Any]:
     path = PUBLIC_DATA_DIR / "reservoirs.geojson"
     with path.open("r", encoding="utf-8") as handle:
         payload = json.load(handle)
-    if len(payload.get("features", [])) != 25:
-        raise RuntimeError("Reservoir GeoJSON must contain exactly 25 features")
+    features = payload.get("features", [])
+    if not features:
+        raise RuntimeError("Reservoir GeoJSON must contain at least one feature")
+    reservoir_ids = [feature.get("properties", {}).get("id") for feature in features]
+    if any(not reservoir_id for reservoir_id in reservoir_ids):
+        raise RuntimeError("Every reservoir feature must have an id")
+    if len(set(reservoir_ids)) != len(reservoir_ids):
+        raise RuntimeError("Reservoir feature ids must be unique")
     return payload
 
 

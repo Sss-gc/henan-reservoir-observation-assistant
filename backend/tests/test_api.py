@@ -19,7 +19,7 @@ def test_health() -> None:
     assert response.status_code == 200
     payload = response.json()
     assert payload["status"] == "ok"
-    assert payload["reservoir_count"] == 25
+    assert payload["reservoir_count"] == 26
 
 
 def test_scheduler_status() -> None:
@@ -64,10 +64,14 @@ def test_reservoir_collection_and_detail() -> None:
     with client:
         response = client.get("/api/v1/reservoirs")
         detail = client.get("/api/v1/reservoirs/HN_RSV_001")
+        xiaonanhai = client.get("/api/v1/reservoirs/HN_RSV_026")
     assert response.status_code == 200
-    assert len(response.json()["features"]) == 25
+    assert len(response.json()["features"]) == 26
     assert detail.status_code == 200
     assert detail.json()["properties"]["name_cn"] == "彰武水库"
+    assert xiaonanhai.status_code == 200
+    assert xiaonanhai.json()["properties"]["name_cn"] == "小南海水库"
+    assert xiaonanhai.json()["properties"]["city_official"] == "安阳市"
 
 
 def test_missing_reservoir() -> None:
@@ -214,7 +218,7 @@ def test_admin_overview_reports_storage_scheduler_and_counts() -> None:
         response = client.get("/api/v1/admin/overview", headers=ADMIN_HEADERS)
     assert response.status_code == 200
     payload = response.json()
-    assert payload["counts"]["reservoirs"] == 25
+    assert payload["counts"]["reservoirs"] == 26
     assert payload["counts"]["imagery_products"] >= 1
     assert payload["storage"]["database_bytes"] > 0
     assert "preview_cache" in payload["storage"]

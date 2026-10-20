@@ -62,7 +62,7 @@ const [, snapshot] = await Promise.all([reuseOrbits ? Promise.resolve() : calcul
   buildWeatherSnapshot((ms) => new Promise((resolve) => setTimeout(resolve, ms)), new Date(), null, fetchNmc)])
 const orbits = JSON.parse(await fs.readFile(orbitFile, 'utf8'))
 if (orbits.pipeline !== 'miniprogram-static-independent-v1' || !orbits.items?.length) throw new Error('独立轨道校验失败')
-if (Object.keys(snapshot.reservoirs).length !== 25 || snapshot.staleReservoirIds.length) throw new Error('独立天气未完整更新，本次不发布')
+if (Object.keys(snapshot.reservoirs).length !== reservoirs.length || snapshot.staleReservoirIds.length) throw new Error('独立天气未完整更新，本次不发布')
 const weather = { source: snapshot.source, generatedAt: snapshot.generatedAt, pipeline: 'miniprogram-static-independent-v1',
   staleReservoirIds: [], items: Object.fromEntries(Object.entries(snapshot.reservoirs).map(([id, value]) =>
     [id, { source: snapshot.source, ...value, days: value.forecast, cacheStatus: 'static' }])) }
@@ -91,4 +91,5 @@ for (const selected of [reservoirs, ...reservoirs.map((reservoir) => [reservoir]
 await fs.writeFile(path.join(output, 'data/orbits.json'), JSON.stringify(orbits))
 await fs.writeFile(path.join(output, 'data/weather.json'), JSON.stringify(weather))
 await fs.writeFile(path.join(output, 'data/manifest.json'), JSON.stringify(manifest))
-console.log(JSON.stringify({ generatedAt: manifest.generatedAt, windows: orbits.items.length, reservoirs: 25, documents: 26, output }))
+console.log(JSON.stringify({ generatedAt: manifest.generatedAt, windows: orbits.items.length,
+  reservoirs: reservoirs.length, documents: Object.keys(manifest.documents).length, output }))

@@ -1,0 +1,24 @@
+.title-line { display: flex; align-items: flex-start; justify-content: space-between; gap: 18rpx; margin-top: 4rpx; }
+.title-line .title { font-size: 42rpx; }
+.source-badge { flex: 0 0 auto; margin-top: 8rpx; padding: 6rpx 14rpx; border-radius: 999rpx; color: #88c0d0; background: #183640; font-size: 20rpx; }
+.source-badge.reference { color: #a3be8c; background: #23362b; }
+.map-card { padding: 16rpx; }
+.sampling-map { display: block; width: 100%; height: 720rpx; border-radius: 20rpx; overflow: hidden; background: #dce7e9; }
+.map-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 16rpx; padding: 12rpx 4rpx 0; }
+.map-toolbar .section-note { flex: 1; margin: 0; }
+.map-toolbar-actions { display: flex; flex: 0 0 auto; gap: 10rpx; }
+.control-card { padding: 24rpx; }
+.count-control { display: flex; align-items: center; border: 1rpx solid #365462; border-radius: 16rpx; overflow: hidden; background: #091d27; }
+.count-control button { width: 72rpx; height: 60rpx; border-radius: 0; background: transparent; color: #88c0d0; font-size: 32rpx; }
+.count-control button[disabled] { color: #536b78; }
+.count-control text { min-width: 70rpx; text-align: center; color: #eceff4; font-size: 30rpx; font-weight: 650; }
+.metrics { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10rpx; margin-top: 24rpx; }
+.metrics > view { padding: 16rpx 8rpx; border: 1rpx solid #294653; border-radius: 16rpx; background: #091d27; text-align: center; color: #91a7b5; font-size: 19rpx; }
+.metrics text { display: block; color: #e5e9f0; font-size: 31rpx; font-weight: 650; }
+.restore-button { margin-top: 18rpx; padding-top: 14rpx; padding-bottom: 14rpx; }
+.rules-card { padding: 24rpx; }
+.rule { display: flex; gap: 18rpx; padding: 19rpx 0; border-bottom: 1rpx solid #294653; }
+.rule:last-child { padding-bottom: 0; border-bottom: 0; }
+.rule > text { flex: 0 0 48rpx; color: #88c0d0; font-size: 22rpx; font-weight: 650; }
+.rule .section-note { margin-top: 2rpx; }
+.export-button { margin-top: 24rpx; }

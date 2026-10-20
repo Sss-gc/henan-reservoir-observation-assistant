@@ -1,10 +1,11 @@
+<page-meta background-color="#06141d" background-color-top="#06141d" background-color-bottom="#06141d" root-background-color="#06141d" page-style="background-color: #06141d;" />
 <view class="page tab-page">
   <view class="eyebrow">OBSERVATION DATA</view><view class="title about-title">观测有据，出发有数</view>
   <view class="subtitle">星地同步实验助手 · 独立数据</view>
   <view class="card">
     <view class="section-title">数据来源</view>
-    <view class="info"><view class="info-label">水库</view><view>本地包含25座水库边界及WGS84椭球参考面积，保留丹江口南侧汉江区域。</view></view>
-    <view class="info"><view class="info-label">腾讯地图</view><view>小程序采用微信内置腾讯地图，仅展示水库位置标记，支持搜索、切换和缩放。</view></view>
+    <view class="info"><view class="info-label">水库</view><view>本地包含26座水库边界及WGS84椭球参考面积；丹江口仅用于河南库区采样，小南海作为补充典型水库接入。</view><view class="muted small">小南海边界：OpenStreetMap relation 4433332（© OpenStreetMap contributors，ODbL 1.0）。</view></view>
+    <view class="info"><view class="info-label">腾讯地图</view><view>小程序采用微信内置腾讯地图，展示水库位置及黄河、淮河、长江、海河流域标识，支持按流域聚焦、搜索、切换和缩放。</view></view>
     <view class="info"><view class="info-label">中央气象台</view><view>独立定时任务直接获取7日昼夜文字预报，每天北京时间09:15开始更新。保留实际获取时间，更新失败时继续提供上一批并显示过期状态。</view><view class="muted small">天气批次：{{meta.weatherGeneratedAt || '尚未获取'}}</view></view>
     <view class="info"><view class="info-label">卫星过境</view><view>独立任务从CelesTrak获取轨道根数，计算未来30天完整覆盖窗口与耀光风险并生成小程序专属静态数据。保留实际生成时间与轨道历元。</view><view class="muted small">生成时间：{{meta.orbitGeneratedAt || '尚未获取'}}</view><view class="muted small">覆盖日期：{{meta.orbitStartDate || '尚未获取'}} — {{meta.orbitEndDate || '尚未获取'}}</view></view>
   </view>
