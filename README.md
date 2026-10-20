@@ -24,15 +24,16 @@
   ├─ Cloudflare Pages：Vue 静态网页、25 座水库 GeoJSON、轨道 JSON
   └─ Pages Function /api/weather：按水库读取 Workers KV 缓存
 
-Cloudflare Worker Cron（每天北京时间 09:00）
-  └─ 低频读取中央气象台县市级页面 → 提取7天昼夜文字天气 → 原子写入 Workers KV
+Cloudflare Worker Cron（每天北京时间 08:10、08:40、09:10）
+  ├─ 低频读取中央气象台县市级页面 → 提取7天昼夜文字天气 → 原子写入 Workers KV
+  └─ 检查小程序天气批次；过期时通过加密令牌主动触发GitHub完整发布
 
 GitHub Actions（每天北京时间 02:15；失败时 08:15 补刷）
   └─ CelesTrak OMM → SGP4/幅宽完整覆盖计算 → 更新 orbit-passes.json
 
 独立微信小程序（免登录访问）
   └─ 免费GitHub Pages → 专属JSON和Word
-       └─ GitHub Actions每日独立获取NMC/OMM、计算轨道并原子发布
+       └─ GitHub定时任务与Cloudflare外部看门狗双重触发，独立获取NMC/OMM、计算轨道并原子发布
 ```
 
 网站运行时不需要 FastAPI、SQLite、Docker、Copernicus 密钥或 USGS 密钥。仓库保留的 Python 轨道模块仅供 GitHub Actions 每日生成静态结果。
@@ -118,7 +119,7 @@ pnpm mini-static:deploy
 ```text
 src/                                      Vue 页面与联合推荐算法
 functions/api/                            Cloudflare 天气与健康检查函数
-weather-worker/                           每天09:00运行的天气抓取 Worker
+weather-worker/                           08:10起运行的天气抓取与小程序更新看门狗
 public/data/reservoirs.geojson            25 座水库主数据
 public/data/orbit-passes.json             未来 30 天静态过境结果
 backend/app/tasks/export_static_observations.py  静态轨道导出器

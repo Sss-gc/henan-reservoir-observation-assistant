@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { ensureStaticWeatherRefresh, hasCurrentStaticWeather } from './index'
 import { buildWeatherSnapshot, parseNmcForecast, RESERVOIR_STATIONS, type WeatherSnapshot } from './nmc'
 
 const block = (date: string, day: string, night: string) => `<div class="weather pull-left"><div class=weatherWrap><div class=date>${date}<br>周一</div><div class=desc>${day}</div><div class=tmp>30℃</div><div class=desc>${night}</div></div></div>`
@@ -66,5 +67,56 @@ describe('NMC text forecast parser', () => {
     expect(snapshot.reservoirs.HN_RSV_024.sourceUrl).toBe('https://www.nmc.cn/publish/forecast/AHA/zuochuan2.html')
     expect(redirects).toHaveLength(22)
     expect(new Set(redirects)).toEqual(new Set(['manual']))
+  })
+})
+
+const staticWeather = (publishedAt = '2026-10-20T08:00:00+08:00') => ({
+  pipeline: 'miniprogram-static-independent-v1', source: '中央气象台', generatedAt: '2026-10-20T00:05:00Z',
+  items: Object.fromEntries(Array.from({ length: 25 }, (_, index) => [String(index), {
+    fetchedAt: '2026-10-20T00:05:00Z', publishedAt,
+    days: Array.from({ length: 7 }, (_, day) => ({ date: `2026-10-${String(20 + day).padStart(2, '0')}` })),
+  }])),
+})
+
+describe('independent mini-program refresh watchdog', () => {
+  const now = new Date('2026-10-20T00:10:00Z')
+
+  it('recognizes only a complete current 25-station static batch', () => {
+    expect(hasCurrentStaticWeather(staticWeather(), now)).toBe(true)
+    expect(hasCurrentStaticWeather(staticWeather('2026-10-19T20:00:00+08:00'), now)).toBe(false)
+    expect(hasCurrentStaticWeather({ ...staticWeather(), items: {} }, now)).toBe(false)
+  })
+
+  it('does not dispatch when GitHub Pages already has current weather', async () => {
+    const calls: string[] = []
+    const fetcher = (async (input: RequestInfo | URL) => {
+      calls.push(String(input))
+      return Response.json(staticWeather())
+    }) as typeof fetch
+    await expect(ensureStaticWeatherRefresh({} as Env, now, fetcher)).resolves.toBe('already-current')
+    expect(calls).toHaveLength(1)
+  })
+
+  it('dispatches the workflow with the encrypted token when weather is stale', async () => {
+    const calls: Array<{ url: string; init?: RequestInit }> = []
+    const fetcher = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      calls.push({ url: String(input), init })
+      return calls.length === 1 ? Response.json(staticWeather('2026-10-19T20:00:00+08:00')) : new Response(null, { status: 204 })
+    }) as typeof fetch
+    await expect(ensureStaticWeatherRefresh({ GITHUB_WORKFLOW_TOKEN: 'test-token' } as Env, now, fetcher)).resolves.toBe('dispatched')
+    expect(calls).toHaveLength(2)
+    expect(calls[1].init?.method).toBe('POST')
+    expect(new Headers(calls[1].init?.headers).get('Authorization')).toBe('Bearer test-token')
+    expect(JSON.parse(String(calls[1].init?.body))).toEqual({ ref: 'main' })
+  })
+
+  it('reports missing credentials or a rejected GitHub dispatch', async () => {
+    const stale = (async () => Response.json(staticWeather('2026-10-19T20:00:00+08:00'))) as typeof fetch
+    await expect(ensureStaticWeatherRefresh({} as Env, now, stale)).rejects.toThrow('GITHUB_WORKFLOW_TOKEN')
+    let call = 0
+    const rejected = (async () => ++call === 1
+      ? Response.json(staticWeather('2026-10-19T20:00:00+08:00'))
+      : new Response('forbidden', { status: 403 })) as typeof fetch
+    await expect(ensureStaticWeatherRefresh({ GITHUB_WORKFLOW_TOKEN: 'bad-token' } as Env, now, rejected)).rejects.toThrow('HTTP 403')
   })
 })
