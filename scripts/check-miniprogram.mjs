@@ -167,6 +167,9 @@ await check('6个页面配置、首页与点位全屏模式直接渲染原生地
     if (relative === 'pages/plan/plan') {
       assert.match(template, /class="record-date">{{item\.dateLabel}}/)
       assert.doesNotMatch(template, /{{item\.time}}/, '方案卡片只突出月日，不展示具体时刻')
+      assert.match(template, /全部 {{totalReservoirCount}} 座水库/)
+      assert.doesNotMatch(template, /全部 25 座水库/)
+      assert.match(template, /{{reservoirCount}}<\/text><view>水库总数/)
     }
     if (relative === 'pages/pass/pass') {
       assert.match(template, /class="overpass-date">{{pass\.fullDateLabel}}/)
@@ -313,7 +316,11 @@ await check('首页搜索切换、筛选分页、详情与方案复制使用同�
   assert.match(detail.data.pass.weekdayLabel, /^周[日一二三四五六]$/)
   detail.copyWindow(); assert.match(calls.clipboard.at(-1), /中央气象台/); assert.doesNotMatch(calls.clipboard.at(-1), /示例|预览/)
   detail.openPlan(); const plan = page('pages/plan/plan'); await plan.onShow()
+  const totalReservoirCount = data.getReservoirList().length
+  assert.equal(plan.data.totalReservoirCount, totalReservoirCount)
+  assert.equal(plan.data.reservoirCount, 1)
   plan.selectScope(event({ scope: '全部水库' })); plan.copyPlan()
+  assert.equal(plan.data.reservoirCount, totalReservoirCount)
   assert.equal(plan.data.groups.map((g) => g.name).join(','), 'Sentinel,HJ,Landsat,GF / Gaofen')
   const keys = plan.data.groups.flatMap((g) => g.records.map((p) => `${p.reservoir_id}|${p.date}|${p.satellite}`))
   assert.equal(new Set(keys).size, keys.length); assert.doesNotMatch(calls.clipboard.at(-1), /示例|预览/)

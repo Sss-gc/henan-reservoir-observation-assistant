@@ -3,7 +3,9 @@ const document = require('../../utils/document')
 const { showTab, prepareTabPage } = require('../../utils/tab-page')
 
 Page({
-  data: { meta: data.meta, scope: '当前水库', selected: null, groups: [], count: 0, reservoirCount: 0, loading: false, documentLoading: false, documentError: '' },
+  data: { meta: data.meta, scope: '当前水库', selected: null, groups: [], count: 0,
+    totalReservoirCount: data.getReservoirList().length, reservoirCount: 0,
+    loading: false, documentLoading: false, documentError: '' },
   onLoad() { prepareTabPage() },
   async onShow() {
     showTab(this, 1)
@@ -15,11 +17,14 @@ Page({
     finally { this.setData({ loading: false }) }
   },
   refreshPlan() {
-    const selected = data.getReservoirList().find((r) => r.id === getApp().globalData.selectedReservoirId)
+    const reservoirs = data.getReservoirList()
+    const selected = reservoirs.find((r) => r.id === getApp().globalData.selectedReservoirId)
     const groups = data.getPlanGroups(this.data.scope === '当前水库' ? selected.id : null)
     const records = groups.flatMap((group) => group.records)
     this._renderedAt = data.meta.loadedAt
-    this.setData({ meta: { ...data.meta }, selected, groups, count: records.length, reservoirCount: new Set(records.map((p) => p.reservoir_id)).size })
+    this.setData({ meta: { ...data.meta }, selected, groups, count: records.length,
+      totalReservoirCount: reservoirs.length,
+      reservoirCount: this.data.scope === '当前水库' ? (selected ? 1 : 0) : reservoirs.length })
   },
   selectScope(event) { if (this.data.documentLoading) return; this.setData({ scope: event.currentTarget.dataset.scope, documentError: '' }); this.refreshPlan() },
   async downloadWord() {
