@@ -40,9 +40,9 @@ export async function needsRefresh(eventName, fetcher = fetch, now = new Date())
     }
     const manifestResponse = await fetcher(`${serviceBaseUrl}/data/manifest.json?check=${now.getTime()}`, options)
     if (!manifestResponse.ok || !hasCurrentBatch(await manifestResponse.json(), now)) return true
-    // Before the NMC morning release, today's independently fetched batch is usable.
-    // From Beijing 08:30 onward, keep retrying until all 25 stations report today's publication date.
-    if (beijingMinutes(now.toISOString()) < 8 * 60 + 30) return false
+    // Before the first Beijing 08:10 run, today's independently fetched batch is usable.
+    // From 08:10 onward, keep retrying until all 25 stations report today's publication date.
+    if (beijingMinutes(now.toISOString()) < 8 * 60 + 10) return false
     const weatherResponse = await fetcher(`${serviceBaseUrl}/data/weather.json?check=${now.getTime()}`, options)
     return !weatherResponse.ok || !hasCurrentWeather(await weatherResponse.json(), now)
   } catch {

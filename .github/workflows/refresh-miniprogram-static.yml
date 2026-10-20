@@ -10,10 +10,9 @@ on:
       - 'scripts/build-mini-static.mjs'
       - 'weather-worker/src/nmc.ts'
   schedule:
-    # GitHub scheduled runs may be delayed for hours. Start at Beijing 02:17,
-    # then retry through 10:47; fresh batches exit after the lightweight check.
-    - cron: '17 18,20,22 * * *'
-    - cron: '17,47 0-2 * * *'
+    # NMC publishes the morning forecast at about Beijing 08:00. Start at 08:10,
+    # then retry every 30 minutes through 10:40; fresh batches exit after the lightweight check.
+    - cron: '10,40 0-2 * * *'
   workflow_dispatch:
 
 permissions:

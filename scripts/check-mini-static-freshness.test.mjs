@@ -44,10 +44,10 @@ test('weather freshness requires all 25 stations to be fetched and published tod
   assert.equal(hasCurrentWeather(weather('2026-10-17T18:00:00+08:00'), now), false)
   assert.equal(hasCurrentWeather({ ...weather(), items: {} }, now), false)
 })
-test('an early fresh batch waits for the NMC morning release, then retries old publication dates', async () => {
+test('weather publication-date checks start at Beijing 08:10', async () => {
   const oldWeather = weather('2026-10-17T18:00:00+08:00')
-  assert.equal(await needsRefresh('schedule', service(manifest(), oldWeather), new Date('2026-10-17T23:17:00Z')), false)
-  assert.equal(await needsRefresh('schedule', service(manifest(), oldWeather), now), true)
+  assert.equal(await needsRefresh('schedule', service(manifest(), oldWeather), new Date('2026-10-18T00:09:59Z')), false)
+  assert.equal(await needsRefresh('schedule', service(manifest(), oldWeather), new Date('2026-10-18T00:10:00Z')), true)
 })
 test('network, HTTP and JSON errors do not suppress recovery', async () => {
   for (const fetcher of [async () => { throw new Error('timeout') },
