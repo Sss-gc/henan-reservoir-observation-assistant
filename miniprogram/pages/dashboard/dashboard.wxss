@@ -133,7 +133,9 @@ THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH RE
 .point-adjustment-copy { flex: 1; min-width: 0; font-size: 21rpx; font-weight: 650; line-height: 1.35; }
 .point-adjustment-copy > text { display: block; margin-top: 1rpx; overflow: hidden; color: #8fb4bf; font-size: 18rpx; font-weight: 400; text-overflow: ellipsis; white-space: nowrap; }
 .point-adjustment-panel.error .point-adjustment-copy > text { color: #e0a995; }
-.point-adjustment-cancel { flex: 0 0 auto; margin-left: 14rpx; padding: 7rpx 16rpx; border: 1rpx solid #52727c; border-radius: 11rpx; color: #b9d8dd; font-size: 20rpx; }
+.point-adjustment-actions { display: flex; flex: 0 0 auto; align-items: center; gap: 8rpx; margin-left: 12rpx; }
+.point-adjustment-cancel, .point-measure-button { flex: 0 0 auto; padding: 7rpx 14rpx; border: 1rpx solid #52727c; border-radius: 11rpx; color: #b9d8dd; font-size: 20rpx; }
+.point-measure-button.active { border-color: #c9a8e8; background: #654c8a; color: #fff; }
 .point-nudge-controls { display: grid; grid-template-columns: repeat(3, 78rpx); grid-template-rows: repeat(3, 66rpx); justify-content: center; gap: 5rpx; padding: 2rpx 22rpx 12rpx; }
 .point-nudge-button { display: flex; align-items: center; justify-content: center; border: 1rpx solid #5f8590; border-radius: 14rpx; background: #173f49; color: #e4f5f3; font-size: 34rpx; font-weight: 700; line-height: 1; box-shadow: inset 0 0 0 1rpx rgba(136, 192, 208, 0.12); }
 .point-nudge-center { display: flex; align-items: center; justify-content: center; color: #8fb4bf; font-size: 17rpx; font-weight: 650; }

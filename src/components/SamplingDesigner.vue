@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
 import * as L from 'leaflet'
-import { ArrowLeft, CircleAlert, Download, LocateFixed, Minus, Plus, RefreshCw } from 'lucide-vue-next'
+import { ArrowLeft, CircleAlert, Download, LocateFixed, Minus, Plus, RefreshCw, Ruler } from 'lucide-vue-next'
 import type { ReservoirFeature, SamplingReferenceLayouts, SamplingReservoir, SamplingScopeCollection } from '../types'
 import {
   addSamplingPoint, buildOviKml, buildSamplingPlan, createSamplingReservoir, getSamplingSchemes,
   MAX_POINT_COUNT, MIN_POINT_COUNT, moveSamplingPoint, removeLastSamplingPoint, reservoirBasin,
+  samplingPointDistanceM,
 } from '../services/sampling'
 import type { SamplingPlan, SamplingScheme } from '../services/sampling'
 
@@ -23,6 +24,8 @@ const exportMessage = ref('')
 const adjustmentMessage = ref('拖动任一编号点可手动调整位置；点位必须保留在河南库区水面内。')
 const adjustmentError = ref(false)
 const addingPoint = ref(false)
+const measuringPoints = ref(false)
+const measurementPointIds = ref<number[]>([])
 const basemapUnavailable = ref(false)
 const schemeId = ref<SamplingScheme['id']>('sync')
 const requestController = new AbortController()
@@ -43,6 +46,16 @@ const sourceLabel = computed(() => plan.value?.source === 'reference'
   : plan.value?.source === 'shore-candidates'
     ? `岸边候选点位${plan.value?.manualAdjustmentCount ? ` · 手动编辑${plan.value.manualAdjustmentCount}点` : ''}`
     : `自动设计点位${plan.value?.manualAdjustmentCount ? ` · 手动编辑${plan.value.manualAdjustmentCount}点` : ''}`)
+const measurementText = computed(() => {
+  if (!measuringPoints.value) return '依次点击两个编号点，显示两点直线距离'
+  const points = measurementPointIds.value
+    .map((id) => plan.value?.points.find((point) => point.id === id))
+    .filter((point) => point !== undefined)
+  if (!points.length) return '测距已开启：请选择第一个编号点'
+  if (points.length === 1) return `已选 ${points[0].name}：请再选择一个不同点位`
+  const distance = samplingPointDistanceM(points[0], points[1])
+  return `${points[0].name} ↔ ${points[1].name}：${distance.toLocaleString('zh-CN')} m`
+})
 
 function close() { emit('close') }
 
@@ -77,6 +90,8 @@ function rebuild(count?: number, nextScheme = schemeId.value) {
   adjustmentMessage.value = '拖动任一编号点可手动调整位置；点位必须保留在河南库区水面内。'
   adjustmentError.value = false
   addingPoint.value = false
+  measuringPoints.value = false
+  measurementPointIds.value = []
   try {
     const scope = scopes.value.features.find((feature) => feature.properties.id === props.selected.properties.id)
     if (!scope) throw new Error('该水库暂缺河南库区采样边界')
@@ -96,10 +111,13 @@ function rebuild(count?: number, nextScheme = schemeId.value) {
 function toggleAddingPoint() {
   if (!plan.value || plan.value.count >= MAX_POINT_COUNT) return
   addingPoint.value = !addingPoint.value
+  measuringPoints.value = false
+  measurementPointIds.value = []
   adjustmentError.value = false
   adjustmentMessage.value = addingPoint.value
     ? `添加模式：请在水面上点击放置 ${String(plan.value.count + 1).padStart(2, '0')} 号点。`
     : '已取消添加点位；现有布局保持不变。'
+  drawPlan(false)
 }
 
 function addPointAtMapLocation(event: L.LeafletMouseEvent) {
@@ -107,6 +125,8 @@ function addPointAtMapLocation(event: L.LeafletMouseEvent) {
   try {
     plan.value = addSamplingPoint(reservoir.value, plan.value, event.latlng.lng, event.latlng.lat)
     addingPoint.value = false
+    measuringPoints.value = false
+    measurementPointIds.value = []
     adjustmentError.value = false
     adjustmentMessage.value = `${plan.value.points.at(-1)?.name} 号点已添加；原有点位均保持不变，可继续拖动微调。`
     drawPlan(false)
@@ -122,6 +142,8 @@ function removeLastPoint() {
   try {
     plan.value = removeLastSamplingPoint(plan.value)
     addingPoint.value = false
+    measuringPoints.value = false
+    measurementPointIds.value = []
     adjustmentError.value = false
     adjustmentMessage.value = `${removedName} 号点已删除；其余点位位置保持不变。`
     drawPlan(false)
@@ -129,6 +151,22 @@ function removeLastPoint() {
     adjustmentError.value = true
     adjustmentMessage.value = cause instanceof Error ? cause.message : '删除点位失败'
   }
+}
+
+function togglePointMeasurement() {
+  measuringPoints.value = !measuringPoints.value
+  measurementPointIds.value = []
+  addingPoint.value = false
+  adjustmentError.value = false
+  drawPlan(false)
+}
+
+function selectMeasurementPoint(pointId: number) {
+  if (!measuringPoints.value) return
+  const selected = measurementPointIds.value
+  if (selected.length === 1 && selected[0] !== pointId) measurementPointIds.value = [selected[0], pointId]
+  else if (selected.length !== 1) measurementPointIds.value = [pointId]
+  drawPlan(false)
 }
 
 function initializeMap() {
@@ -164,21 +202,37 @@ function drawPlan(shouldFit = true) {
   const coordinates = plan.value.points.map((point) => L.latLng(point.latitude, point.longitude))
   L.polyline(coordinates, { color: '#b44d67', weight: 2, opacity: 0.8, dashArray: '5 7', interactive: false })
     .addTo(designLayer)
+  const measuredPoints = measurementPointIds.value
+    .map((id) => plan.value?.points.find((point) => point.id === id))
+    .filter((point) => point !== undefined)
+  if (measuredPoints.length === 2) {
+    const distance = samplingPointDistanceM(measuredPoints[0], measuredPoints[1])
+    L.polyline(measuredPoints.map((point) => L.latLng(point.latitude, point.longitude)), {
+      color: '#9b72cf', weight: 4, opacity: 0.95, interactive: false,
+    }).bindTooltip(`${distance.toLocaleString('zh-CN')} m`, {
+      permanent: true, direction: 'center', className: 'measurement-distance-tooltip',
+    }).addTo(designLayer)
+  }
   for (const point of plan.value.points) {
     const popup = document.createElement('div')
     popup.className = 'point-popup'
     popup.textContent = `${point.name} · ${point.longitude.toFixed(8)}, ${point.latitude.toFixed(8)} · WGS84`
     const marker = L.marker([point.latitude, point.longitude], {
-      draggable: true,
+      draggable: !measuringPoints.value,
       bubblingMouseEvents: false,
       icon: L.divIcon({
-        className: `sampling-point-icon${point.manuallyAdjusted ? ' manually-adjusted' : ''}`,
+        className: `sampling-point-icon${point.manuallyAdjusted ? ' manually-adjusted' : ''}${measurementPointIds.value.includes(point.id) ? ' measurement-selected' : ''}`,
         html: `<span>${point.name}</span>`,
         iconSize: [28, 28], iconAnchor: [14, 14],
       }),
       title: `采样点 ${point.name}`,
       alt: `采样点 ${point.name}`,
     }).bindPopup(popup).addTo(designLayer)
+    marker.on('click', () => {
+      if (!measuringPoints.value) return
+      marker.closePopup()
+      selectMeasurementPoint(point.id)
+    })
     marker.on('dragstart', () => {
       addingPoint.value = false
       adjustmentError.value = false
@@ -253,6 +307,10 @@ onBeforeUnmount(() => {
       <header class="designer-header">
         <button class="back-button" aria-label="关闭点位设计，返回观测计划" @click="close"><ArrowLeft :size="19" /><span>返回</span></button>
         <div class="designer-title"><p class="eyebrow">WATER SAMPLING DESIGN</p><h2 id="sampling-title">采样点位设计</h2></div>
+        <div class="designer-toolbar" aria-label="点位设计工具栏">
+          <button :class="['tool-button', { active: measuringPoints }]" :aria-pressed="measuringPoints" @click="togglePointMeasurement"><Ruler :size="16" />{{ measuringPoints ? '退出测距' : '测两点距离' }}</button>
+          <span class="tool-status" aria-live="polite">{{ measurementText }}</span>
+        </div>
         <label class="reservoir-selector"><span>当前水库</span><select :value="selected.properties.id" aria-label="选择点位设计水库" @change="changeReservoir">
           <optgroup v-for="group in reservoirGroups" :key="group.basin" :label="group.basin">
             <option v-for="feature in group.features" :key="feature.properties.id" :value="feature.properties.id">{{ feature.properties.name_cn }}</option>
@@ -328,8 +386,10 @@ onBeforeUnmount(() => {
 .sampling-dialog::backdrop{background:#06141d}
 .designer-shell{height:100%;display:flex;flex-direction:column}
 .designer-header{display:flex;align-items:center;gap:20px;flex:none;padding:16px 24px;border-bottom:1px solid var(--line);background:#0a1d29}
-.designer-title{flex:1}.designer-title h2{font-size:20px;margin:3px 0 0}
+.designer-title{flex:0 0 auto}.designer-title h2{font-size:20px;margin:3px 0 0}
 .back-button,.fit-button,.restore-button{display:inline-flex;align-items:center;justify-content:center;gap:7px;border:1px solid #365462;background:#102b38;border-radius:9px;padding:9px 12px;cursor:pointer;color:#c6e0e8;font-size:12px}
+.designer-toolbar{display:flex;align-items:center;flex:1;min-width:260px;max-width:760px;height:42px;overflow:hidden;border:1px solid #365462;border-radius:10px;background:#091f2c}
+.tool-button{display:inline-flex;align-items:center;align-self:stretch;gap:7px;flex:0 0 auto;padding:0 14px;border:0;border-right:1px solid #365462;background:#143441;color:#c7e2e8;cursor:pointer;font-size:12px;font-weight:600}.tool-button.active{background:#1f6f63;color:#effffc}.tool-status{min-width:0;overflow:hidden;padding:0 13px;color:#8fb4bf;font-size:11px;text-overflow:ellipsis;white-space:nowrap}.tool-button.active+.tool-status{color:#8fe4d4}
 .reservoir-selector{display:flex;align-items:center;gap:10px;color:#8baab9;font-size:12px}
 .reservoir-selector select{max-width:240px;min-width:170px;padding:10px 12px;border:1px solid #365462;border-radius:9px;background:#102b38;color:#e5f2f7;font:inherit}
 .designer-body{display:grid;grid-template-columns:minmax(0,1fr) 360px;flex:1;min-height:0}
@@ -363,9 +423,10 @@ button:disabled{opacity:.4;cursor:default}.restore-button{margin-top:10px;width:
 .export-area{padding:22px}.export-button{width:100%;display:flex;align-items:center;justify-content:center;gap:8px;padding:14px 10px;border:1px solid #58cbb9;border-radius:10px;background:#225d54;color:#edfffc;font-weight:600;font-size:14px;cursor:pointer}.export-button:hover{background:#2b7266}
 .export-area p{font-size:11px;line-height:1.7;color:#9fbdca;margin:10px 0 0}.export-area .export-status{color:#82e2cb}.export-area .design-footnote{color:#7193a4;margin-top:18px}
 .design-state{padding:30px 22px;display:flex;flex-wrap:wrap;align-items:center;gap:10px;font-size:13px}.design-state.error{color:#efb099}.design-state button{border:1px solid #365462;border-radius:8px;background:#102b38;color:#c6e0e8;padding:8px 12px;cursor:pointer}
-.design-map :deep(.sampling-point-icon){border:0;background:transparent}.design-map :deep(.sampling-point-icon span){display:grid;place-items:center;width:28px;height:28px;border:2px solid #eafffa;border-radius:50%;background:#116b63;color:white;box-shadow:0 2px 7px #001e3440;cursor:grab;font:700 11px/1 system-ui}.design-map :deep(.sampling-point-icon.manually-adjusted span){background:#9a6718;border-color:#fff4ca}.design-map :deep(.leaflet-drag-target .sampling-point-icon span){cursor:grabbing}
+.design-map :deep(.sampling-point-icon){border:0;background:transparent}.design-map :deep(.sampling-point-icon span){display:grid;place-items:center;width:28px;height:28px;border:2px solid #eafffa;border-radius:50%;background:#116b63;color:white;box-shadow:0 2px 7px #001e3440;cursor:grab;font:700 11px/1 system-ui}.design-map :deep(.sampling-point-icon.manually-adjusted span){background:#9a6718;border-color:#fff4ca}.design-map :deep(.sampling-point-icon.measurement-selected span){background:#6f52a3;border-color:#fff;box-shadow:0 0 0 4px #b48ead66,0 2px 7px #001e3440;cursor:pointer}.design-map :deep(.leaflet-drag-target .sampling-point-icon span){cursor:grabbing}
+.design-map :deep(.measurement-distance-tooltip){border:1px solid #c9a8e8;border-radius:8px;background:#241b36;color:#fff;box-shadow:0 2px 8px #06141d80;font:700 11px/1 system-ui}
 .design-map :deep(.point-popup){font-size:12px;line-height:1.7}
 :where(button,input,select,summary):focus-visible{outline:2px solid #70e9d5;outline-offset:3px}
-@media(max-width:800px){.designer-body{display:block;overflow:auto}.design-map{height:auto;min-height:0}.design-map-viewport{flex:none;height:clamp(280px,46vh,440px)}.design-controls{overflow:visible;border-left:0}.designer-header{padding:12px;gap:10px;flex-wrap:wrap}.designer-title h2{font-size:17px}.reservoir-selector{width:100%}.reservoir-selector select{max-width:none;flex:1}.control-section{padding:18px}.design-metrics{grid-template-columns:repeat(4,1fr);gap:10px}.export-area{padding:18px;padding-bottom:max(18px,env(safe-area-inset-bottom))}}
+@media(max-width:800px){.designer-body{display:block;overflow:auto}.design-map{height:auto;min-height:0}.design-map-viewport{flex:none;height:clamp(280px,46vh,440px)}.design-controls{overflow:visible;border-left:0}.designer-header{padding:12px;gap:10px;flex-wrap:wrap}.designer-title h2{font-size:17px}.designer-toolbar{order:3;flex:1 0 100%;max-width:none}.reservoir-selector{width:100%}.reservoir-selector select{max-width:none;flex:1}.control-section{padding:18px}.design-metrics{grid-template-columns:repeat(4,1fr);gap:10px}.export-area{padding:18px;padding-bottom:max(18px,env(safe-area-inset-bottom))}}
 @media(max-width:420px){.design-metrics{grid-template-columns:1fr 1fr}.design-map-toolbar{padding:10px 12px;flex-wrap:wrap}.fit-button{padding:10px}.route-note{padding:0 12px 10px;font-size:10px}.designer-header .eyebrow{font-size:8px}}
 </style>

@@ -229,6 +229,10 @@ function distanceKm(start, end) {
   return 2 * radius * Math.asin(Math.sqrt(value))
 }
 
+function samplingPointDistanceM(start, end) {
+  return Math.round(distanceKm(start, end) * 1000)
+}
+
 function samplingMetrics(points) {
   const distances = points.slice(1).map((point, index) => distanceKm(points[index], point))
   const routeDistanceKm = distances.reduce((sum, distance) => sum + distance, 0)
@@ -401,8 +405,12 @@ ${placemarks}
 `
 }
 
-function buildSamplingMap(plan, coordinateConverter, selectedPointId = 0) {
+function buildSamplingMap(plan, coordinateConverter, selectedPointId = 0, measuredPointIds = []) {
   const mapPoints = plan.points.map((point) => coordinateConverter(point.longitude, point.latitude))
+  const measuredIds = new Set(measuredPointIds)
+  const measuredMapPoints = measuredPointIds
+    .map((id) => mapPoints[plan.points.findIndex((point) => point.id === id)])
+    .filter(Boolean)
   const center = mapPoints.reduce((result, point) => ({
     longitude: result.longitude + point.longitude / mapPoints.length,
     latitude: result.latitude + point.latitude / mapPoints.length,
@@ -413,13 +421,20 @@ function buildSamplingMap(plan, coordinateConverter, selectedPointId = 0) {
       ...center, scale: 11,
       markers: mapPoints.map((point, index) => ({
         id: index + 1, ...point, iconPath: '/assets/marker-selected.png',
-        width: selectedPointId === index + 1 ? 40 : 32, height: selectedPointId === index + 1 ? 50 : 40,
+        width: selectedPointId === index + 1 ? 40 : measuredIds.has(index + 1) ? 38 : 32,
+        height: selectedPointId === index + 1 ? 50 : measuredIds.has(index + 1) ? 48 : 40,
         label: { content: plan.points[index].name,
           padding: 5, fontSize: 11, color: '#06141d',
-          bgColor: selectedPointId === index + 1 ? '#ebcb8b' : plan.points[index].manuallyAdjusted ? '#d6a84d' : '#88c0d0',
-          borderRadius: 9, anchorX: -7, anchorY: selectedPointId === index + 1 ? -55 : -44 },
+          bgColor: selectedPointId === index + 1 ? '#ebcb8b' : measuredIds.has(index + 1) ? '#b48ead' : plan.points[index].manuallyAdjusted ? '#d6a84d' : '#88c0d0',
+          borderRadius: 9, anchorX: -7,
+          anchorY: selectedPointId === index + 1 ? -55 : measuredIds.has(index + 1) ? -52 : -44 },
       })),
-      polyline: mapPoints.length > 1 ? [{ points: mapPoints, color: '#BF616ACC', width: 3, dottedLine: true }] : [],
+      polyline: [
+        ...(mapPoints.length > 1 ? [{ points: mapPoints, color: '#BF616ACC', width: 3, dottedLine: true }] : []),
+        ...(measuredMapPoints.length === 2
+          ? [{ points: measuredMapPoints, color: '#B48EADFF', width: 4, dottedLine: false }]
+          : []),
+      ],
     },
   }
 }
@@ -427,6 +442,6 @@ function buildSamplingMap(plan, coordinateConverter, selectedPointId = 0) {
 module.exports = {
   REFERENCE_COUNTS, MAX_POINT_COUNT, MIN_POINT_COUNT, defaultPointCount, standardPointCount, shorePointCount,
   schemePointCount, getSamplingSchemes, buildSamplingPlan, moveSamplingPoint, addSamplingPoint,
-  removeLastSamplingPoint, buildSamplingMap, buildOviKml,
+  removeLastSamplingPoint, samplingPointDistanceM, buildSamplingMap, buildOviKml,
   largestRing, createGeometry, pointInGeometry,
 }

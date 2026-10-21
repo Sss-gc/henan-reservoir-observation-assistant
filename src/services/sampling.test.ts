@@ -7,7 +7,7 @@ import type {
 } from '../types'
 import {
   addSamplingPoint, buildOviKml, buildSamplingPlan, createGeometry, createSamplingReservoir, getSamplingSchemes,
-  moveSamplingPoint, pointInGeometry, removeLastSamplingPoint,
+  moveSamplingPoint, pointInGeometry, removeLastSamplingPoint, samplingPointDistanceM,
 } from './sampling'
 import type { SamplingPlan, SamplingScheme } from './sampling'
 
@@ -18,6 +18,7 @@ const mini = require('./utils/sampling.js') as {
   moveSamplingPoint: typeof moveSamplingPoint
   addSamplingPoint: typeof addSamplingPoint
   removeLastSamplingPoint: typeof removeLastSamplingPoint
+  samplingPointDistanceM: typeof samplingPointDistanceM
   getSamplingSchemes: (reservoir: SamplingReservoir) => SamplingScheme[]
 }
 const miniReservoirs = require('./data/reservoirs.js') as SamplingReservoir[]
@@ -149,5 +150,13 @@ describe('web and mini program sampling parity', () => {
     expect(removed.points).toEqual(originalPlan.points)
     expect(() => addSamplingPoint(reservoir, originalPlan, 100, 20))
       .toThrow('新增点位必须位于河南库区水面范围内')
+  })
+
+  it('measures the same straight-line distance between any two points on both clients', () => {
+    const plan = buildSamplingPlan(reservoirs.find((item) => item.id === 'HN_RSV_018')!, references)
+    const expected = samplingPointDistanceM(plan.points[0], plan.points[1])
+    expect(expected).toBeGreaterThan(0)
+    expect(expected).toBe(mini.samplingPointDistanceM(plan.points[0], plan.points[1]))
+    expect(samplingPointDistanceM(plan.points[0], plan.points[0])).toBe(0)
   })
 })

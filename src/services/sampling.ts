@@ -358,6 +358,13 @@ function distanceKm(start: Pick<SamplingPoint, 'longitude' | 'latitude'>, end: P
   return 2 * radius * Math.asin(Math.sqrt(value))
 }
 
+export function samplingPointDistanceM(
+  start: Pick<SamplingPoint, 'longitude' | 'latitude'>,
+  end: Pick<SamplingPoint, 'longitude' | 'latitude'>,
+) {
+  return Math.round(distanceKm(start, end) * 1000)
+}
+
 function samplingMetrics(points: SamplingPoint[]) {
   const distances = points.slice(1).map((point, index) => distanceKm(points[index], point))
   const routeDistanceKm = distances.reduce((sum, distance) => sum + distance, 0)
