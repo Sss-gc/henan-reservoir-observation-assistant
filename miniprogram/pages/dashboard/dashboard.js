@@ -47,8 +47,8 @@ Page({
     pointSchemes: [], pointSchemeId: 'sync', pointSchemeAdjustable: true,
     pointReservoirIndex: 0, pointPickerOpen: false,
     pointReservoirOptions: groupReservoirOptions(reservoirOptions),
-    pointAdjustingId: 0, pointAdding: false, pointMeasuring: false, pointMeasureIds: [],
-    pointMeasureDistanceM: 0, pointHasEdits: false, pointAdjustmentError: false,
+    pointAdjustingId: 0, pointAdding: false, pointMeasuring: false, pointMeasureMode: 'points', pointMeasureIds: [],
+    pointMeasureDistanceM: 0, pointShoreMeasurement: null, pointHasEdits: false, pointAdjustmentError: false,
     pointAdjustmentMessage: POINT_ADJUSTMENT_IDLE_MESSAGE,
     pointExportLoading: false, pointExportError: '',
     maxPointCount: sampling.MAX_POINT_COUNT,
@@ -154,7 +154,7 @@ Page({
       this._pointMapPoints = preview.pointMap.includePoints
       this.setTabBarHidden(true)
       this.setData({ pointPreviewOpen: true, pointPickerOpen: false, pointAdjustingId: 0, pointAdding: false,
-        pointMeasuring: false, pointMeasureIds: [], pointMeasureDistanceM: 0, pointHasEdits: false,
+        pointMeasuring: false, pointMeasureIds: [], pointMeasureDistanceM: 0, pointShoreMeasurement: null, pointHasEdits: false,
         pointAdjustmentError: false, pointAdjustmentMessage: POINT_ADJUSTMENT_IDLE_MESSAGE,
         pointSchemes: preview.pointSchemes,
         pointSchemeId: preview.pointSchemeId, pointSchemeAdjustable: preview.pointSchemeAdjustable,
@@ -171,7 +171,7 @@ Page({
   closeSamplingPreview() {
     this._pointMapReady = false
     this.setData({ pointPreviewOpen: false, pointPickerOpen: false, pointAdjustingId: 0, pointAdding: false,
-      pointMeasuring: false, pointMeasureIds: [], pointMeasureDistanceM: 0 }, () => {
+      pointMeasuring: false, pointMeasureIds: [], pointMeasureDistanceM: 0, pointShoreMeasurement: null }, () => {
       this.setTabBarHidden(false)
       this._mapContext = wx.createMapContext('reservoir-map')
       this._mapReady = true
@@ -204,7 +204,7 @@ Page({
     const preview = createPointPreview(data.getReservoir(selected.id), this.data.pointSchemeId)
     this._pointMapPoints = preview.pointMap.includePoints
     this.setData({ pointReservoirIndex: index, pointPickerOpen: false, pointAdjustingId: 0, pointAdding: false,
-      pointMeasuring: false, pointMeasureIds: [], pointMeasureDistanceM: 0, pointHasEdits: false,
+      pointMeasuring: false, pointMeasureIds: [], pointMeasureDistanceM: 0, pointShoreMeasurement: null, pointHasEdits: false,
       pointAdjustmentError: false, pointAdjustmentMessage: POINT_ADJUSTMENT_IDLE_MESSAGE,
       pointSchemes: preview.pointSchemes,
       pointSchemeId: preview.pointSchemeId, pointSchemeAdjustable: preview.pointSchemeAdjustable,
@@ -217,7 +217,7 @@ Page({
     this.setData({ pointSchemes: preview.pointSchemes, pointSchemeId: preview.pointSchemeId,
       pointSchemeAdjustable: preview.pointSchemeAdjustable, pointPlan: preview.pointPlan,
       pointMap: preview.pointMap.view, pointCount: preview.pointPlan.count, pointAdjustingId: 0, pointAdding: false,
-      pointMeasuring: false, pointMeasureIds: [], pointMeasureDistanceM: 0, pointHasEdits: false,
+      pointMeasuring: false, pointMeasureIds: [], pointMeasureDistanceM: 0, pointShoreMeasurement: null, pointHasEdits: false,
       pointAdjustmentError: false, pointAdjustmentMessage: POINT_ADJUSTMENT_IDLE_MESSAGE,
       pointExportError: '' },
       () => this.fitPointPreview())
@@ -233,7 +233,7 @@ Page({
     }
     const pointMap = sampling.buildSamplingMap(this.data.pointPlan, data.wgs84ToGcj02, pointId)
     this.setData({ pointAdjustingId: pointId, pointAdding: false, pointMeasuring: false,
-      pointMeasureIds: [], pointMeasureDistanceM: 0, pointAdjustmentError: false,
+      pointMeasureIds: [], pointMeasureDistanceM: 0, pointShoreMeasurement: null, pointAdjustmentError: false,
       pointAdjustmentMessage: `已选 ${point.name}，点击方向键精细移动`,
       'pointMap.markers': pointMap.view.markers })
   },
@@ -246,15 +246,31 @@ Page({
   restorePointPlan() {
     this.rebuildPointPreview(undefined, this.data.pointSchemeId)
   },
-  togglePointMeasurement() {
-    const pointMeasuring = !this.data.pointMeasuring
+  togglePointMeasurement(event) {
+    const pointMeasureMode = event?.currentTarget?.dataset?.mode === 'shore' ? 'shore' : 'points'
+    const pointMeasuring = !(this.data.pointMeasuring && this.data.pointMeasureMode === pointMeasureMode)
     const pointMap = sampling.buildSamplingMap(this.data.pointPlan, data.wgs84ToGcj02)
-    this.setData({ pointMeasuring, pointMeasureIds: [], pointMeasureDistanceM: 0,
+    this.setData({ pointMeasuring, pointMeasureMode, pointMeasureIds: [], pointMeasureDistanceM: 0,
+      pointShoreMeasurement: null,
       pointAdding: false, pointAdjustingId: 0, pointAdjustmentError: false,
-      pointAdjustmentMessage: pointMeasuring ? '测距已开启：请依次点击两个编号点' : POINT_ADJUSTMENT_IDLE_MESSAGE,
+      pointAdjustmentMessage: pointMeasuring
+        ? pointMeasureMode === 'shore' ? '岸距测量已开启：请选择一个编号点' : '点间测量已开启：请依次点击两个编号点'
+        : POINT_ADJUSTMENT_IDLE_MESSAGE,
       'pointMap.markers': pointMap.view.markers, 'pointMap.polyline': pointMap.view.polyline })
   },
   selectPointForMeasurement(pointId) {
+    const point = this.data.pointPlan.points.find((item) => item.id === pointId)
+    if (!point) return
+    if (this.data.pointMeasureMode === 'shore') {
+      const pointShoreMeasurement = sampling.samplingPointShoreMeasurement(
+        data.getReservoir(this.data.selected.id), point)
+      const pointMap = sampling.buildSamplingMap(
+        this.data.pointPlan, data.wgs84ToGcj02, 0, [pointId], pointShoreMeasurement)
+      this.setData({ pointMeasureIds: [pointId], pointMeasureDistanceM: pointShoreMeasurement.distanceM,
+        pointShoreMeasurement, pointAdjustmentMessage: `${point.name} 距最近岸边：${pointShoreMeasurement.distanceM} 米`,
+        'pointMap.markers': pointMap.view.markers, 'pointMap.polyline': pointMap.view.polyline })
+      return
+    }
     const selected = this.data.pointMeasureIds
     let pointMeasureIds
     if (selected.length === 1 && selected[0] !== pointId) pointMeasureIds = [selected[0], pointId]
@@ -266,7 +282,7 @@ Page({
       ? `${points[0].name} ↔ ${points[1].name}：${pointMeasureDistanceM} 米`
       : `已选 ${points[0].name}，请再点击一个不同点位`
     const pointMap = sampling.buildSamplingMap(this.data.pointPlan, data.wgs84ToGcj02, 0, pointMeasureIds)
-    this.setData({ pointMeasureIds, pointMeasureDistanceM, pointAdjustmentMessage,
+    this.setData({ pointMeasureIds, pointMeasureDistanceM, pointShoreMeasurement: null, pointAdjustmentMessage,
       'pointMap.markers': pointMap.view.markers, 'pointMap.polyline': pointMap.view.polyline })
   },
   nudgeSelectedPoint(event) {
@@ -302,11 +318,11 @@ Page({
     const pointAdding = !this.data.pointAdding
     const pointMap = sampling.buildSamplingMap(this.data.pointPlan, data.wgs84ToGcj02)
     this.setData({ pointAdding, pointAdjustingId: 0, pointMeasuring: false,
-      pointMeasureIds: [], pointMeasureDistanceM: 0, pointAdjustmentError: false,
+      pointMeasureIds: [], pointMeasureDistanceM: 0, pointShoreMeasurement: null, pointAdjustmentError: false,
       pointAdjustmentMessage: pointAdding
         ? `追加模式：请在水面上点击放置 ${String(this.data.pointCount + 1).padStart(2, '0')} 号点`
         : '已取消追加点位；现有布局保持不变',
-      'pointMap.markers': pointMap.view.markers })
+      'pointMap.markers': pointMap.view.markers, 'pointMap.polyline': pointMap.view.polyline })
   },
   addPointAtMapLocation(event) {
     if (!this.data.pointAdding || Date.now() < (this._ignorePointMapTapUntil || 0)) return
@@ -320,7 +336,7 @@ Page({
       const pointMap = sampling.buildSamplingMap(nextPlan, data.wgs84ToGcj02, addedPoint.id)
       this._pointMapPoints = pointMap.includePoints
       this.setData({ pointPlan: nextPlan, pointCount: nextPlan.count, pointAdding: false,
-        pointMeasuring: false, pointMeasureIds: [], pointMeasureDistanceM: 0, pointHasEdits: true,
+        pointMeasuring: false, pointMeasureIds: [], pointMeasureDistanceM: 0, pointShoreMeasurement: null, pointHasEdits: true,
         pointAdjustingId: addedPoint.id, pointAdjustmentError: false,
         pointAdjustmentMessage: `${addedPoint.name} 号点已添加；原有点位未改变，可用方向键继续微调`,
         'pointMap.markers': pointMap.view.markers, 'pointMap.polyline': pointMap.view.polyline })
@@ -337,7 +353,7 @@ Page({
       const pointMap = sampling.buildSamplingMap(nextPlan, data.wgs84ToGcj02)
       this._pointMapPoints = pointMap.includePoints
       this.setData({ pointPlan: nextPlan, pointCount: nextPlan.count, pointAdding: false,
-        pointMeasuring: false, pointMeasureIds: [], pointMeasureDistanceM: 0, pointHasEdits: true,
+        pointMeasuring: false, pointMeasureIds: [], pointMeasureDistanceM: 0, pointShoreMeasurement: null, pointHasEdits: true,
         pointAdjustingId: 0, pointAdjustmentError: false,
         pointAdjustmentMessage: `${removedName} 号点已删除；其余点位位置保持不变`,
         'pointMap.markers': pointMap.view.markers, 'pointMap.polyline': pointMap.view.polyline })

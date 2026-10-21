@@ -169,6 +169,26 @@ function distanceToSegment(point: Pick<ProjectedRingPoint, 'x' | 'y'>, start: Pr
   return Math.hypot(point.x - start.x - ratio * dx, point.y - start.y - ratio * dy)
 }
 
+function nearestPointOnSegment(point: Pick<ProjectedRingPoint, 'x' | 'y'>, start: ProjectedRingPoint, end: ProjectedRingPoint) {
+  const dx = end.x - start.x
+  const dy = end.y - start.y
+  const ratio = !dx && !dy
+    ? 0
+    : clamp(((point.x - start.x) * dx + (point.y - start.y) * dy) / (dx * dx + dy * dy), 0, 1)
+  const x = start.x + ratio * dx
+  const y = start.y + ratio * dy
+  return { x, y, distanceKm: Math.hypot(point.x - x, point.y - y) }
+}
+
+function nearestPointOnRing(point: Pick<ProjectedRingPoint, 'x' | 'y'>, ring: ProjectedRingPoint[]) {
+  let result = { x: 0, y: 0, distanceKm: Infinity }
+  for (let index = 0; index < ring.length; index++) {
+    const candidate = nearestPointOnSegment(point, ring[index], ring[(index + 1) % ring.length])
+    if (candidate.distanceKm < result.distanceKm) result = candidate
+  }
+  return result
+}
+
 function distanceToRing(point: Pick<ProjectedRingPoint, 'x' | 'y'>, ring: ProjectedRingPoint[]) {
   let result = Infinity
   for (let index = 0; index < ring.length; index++) {
@@ -220,6 +240,21 @@ function shoreDistanceInGeometry(point: Pick<ProjectedRingPoint, 'x' | 'y'>, geo
   const polygon = polygonForPoint(point, geometry)
   if (!polygon) return 0
   return Math.min(distanceToRing(point, polygon.outer), ...polygon.holes.map((hole) => distanceToRing(point, hole)))
+}
+
+export function samplingPointShoreMeasurement(
+  reservoir: SamplingReservoir,
+  point: Pick<SamplingPoint, 'longitude' | 'latitude'>,
+) {
+  const geometry = createGeometry(reservoir)
+  const projected = geometry.project([point.longitude, point.latitude])
+  const polygon = polygonForPoint(projected, geometry)
+  if (!polygon) throw new Error('该点位不在当前库区水面范围内')
+  const nearest = [polygon.outer, ...polygon.holes]
+    .map((ring) => nearestPointOnRing(projected, ring))
+    .reduce((result, candidate) => candidate.distanceKm < result.distanceKm ? candidate : result)
+  const shore = geometry.unproject(nearest)
+  return { ...shore, distanceM: Math.round(nearest.distanceKm * 1000) }
 }
 
 function preferredShoreBuffer(reservoir: SamplingReservoir) {

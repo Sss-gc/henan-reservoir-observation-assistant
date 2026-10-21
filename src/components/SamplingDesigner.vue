@@ -6,7 +6,7 @@ import type { ReservoirFeature, SamplingReferenceLayouts, SamplingReservoir, Sam
 import {
   addSamplingPoint, buildOviKml, buildSamplingPlan, createSamplingReservoir, getSamplingSchemes,
   MAX_POINT_COUNT, MIN_POINT_COUNT, moveSamplingPoint, removeLastSamplingPoint, reservoirBasin,
-  samplingPointDistanceM,
+  samplingPointDistanceM, samplingPointShoreMeasurement,
 } from '../services/sampling'
 import type { SamplingPlan, SamplingScheme } from '../services/sampling'
 
@@ -25,6 +25,7 @@ const adjustmentMessage = ref('拖动任一编号点可手动调整位置；点�
 const adjustmentError = ref(false)
 const addingPoint = ref(false)
 const measuringPoints = ref(false)
+const measurementMode = ref<'points' | 'shore'>('points')
 const measurementPointIds = ref<number[]>([])
 const basemapUnavailable = ref(false)
 const schemeId = ref<SamplingScheme['id']>('sync')
@@ -47,11 +48,18 @@ const sourceLabel = computed(() => plan.value?.source === 'reference'
     ? `岸边候选点位${plan.value?.manualAdjustmentCount ? ` · 手动编辑${plan.value.manualAdjustmentCount}点` : ''}`
     : `自动设计点位${plan.value?.manualAdjustmentCount ? ` · 手动编辑${plan.value.manualAdjustmentCount}点` : ''}`)
 const measurementText = computed(() => {
-  if (!measuringPoints.value) return '依次点击两个编号点，显示两点直线距离'
+  if (!measuringPoints.value) return '可测两个点位之间，或点位到最近岸边的直线距离'
   const points = measurementPointIds.value
     .map((id) => plan.value?.points.find((point) => point.id === id))
     .filter((point) => point !== undefined)
-  if (!points.length) return '测距已开启：请选择第一个编号点'
+  if (!points.length) return measurementMode.value === 'shore'
+    ? '岸距测量已开启：请选择一个编号点'
+    : '点间测量已开启：请选择第一个编号点'
+  if (measurementMode.value === 'shore') {
+    if (!reservoir.value) return '当前水库边界尚未载入'
+    const measurement = samplingPointShoreMeasurement(reservoir.value, points[0])
+    return `${points[0].name} 距最近岸边：${measurement.distanceM.toLocaleString('zh-CN')} m`
+  }
   if (points.length === 1) return `已选 ${points[0].name}：请再选择一个不同点位`
   const distance = samplingPointDistanceM(points[0], points[1])
   return `${points[0].name} ↔ ${points[1].name}：${distance.toLocaleString('zh-CN')} m`
@@ -153,8 +161,9 @@ function removeLastPoint() {
   }
 }
 
-function togglePointMeasurement() {
-  measuringPoints.value = !measuringPoints.value
+function togglePointMeasurement(mode: 'points' | 'shore') {
+  measuringPoints.value = !(measuringPoints.value && measurementMode.value === mode)
+  measurementMode.value = mode
   measurementPointIds.value = []
   addingPoint.value = false
   adjustmentError.value = false
@@ -163,6 +172,11 @@ function togglePointMeasurement() {
 
 function selectMeasurementPoint(pointId: number) {
   if (!measuringPoints.value) return
+  if (measurementMode.value === 'shore') {
+    measurementPointIds.value = [pointId]
+    drawPlan(false)
+    return
+  }
   const selected = measurementPointIds.value
   if (selected.length === 1 && selected[0] !== pointId) measurementPointIds.value = [selected[0], pointId]
   else if (selected.length !== 1) measurementPointIds.value = [pointId]
@@ -205,9 +219,16 @@ function drawPlan(shouldFit = true) {
   const measuredPoints = measurementPointIds.value
     .map((id) => plan.value?.points.find((point) => point.id === id))
     .filter((point) => point !== undefined)
-  if (measuredPoints.length === 2) {
-    const distance = samplingPointDistanceM(measuredPoints[0], measuredPoints[1])
-    L.polyline(measuredPoints.map((point) => L.latLng(point.latitude, point.longitude)), {
+  if ((measurementMode.value === 'points' && measuredPoints.length === 2)
+    || (measurementMode.value === 'shore' && measuredPoints.length === 1)) {
+    const shoreMeasurement = measurementMode.value === 'shore'
+      ? samplingPointShoreMeasurement(reservoir.value, measuredPoints[0])
+      : null
+    const distance = shoreMeasurement?.distanceM ?? samplingPointDistanceM(measuredPoints[0], measuredPoints[1])
+    const lineCoordinates = shoreMeasurement
+      ? [L.latLng(measuredPoints[0].latitude, measuredPoints[0].longitude), L.latLng(shoreMeasurement.latitude, shoreMeasurement.longitude)]
+      : measuredPoints.map((point) => L.latLng(point.latitude, point.longitude))
+    L.polyline(lineCoordinates, {
       color: '#9b72cf', weight: 4, opacity: 0.95, interactive: false,
     }).bindTooltip(`${distance.toLocaleString('zh-CN')} m`, {
       permanent: true, direction: 'center', className: 'measurement-distance-tooltip',
@@ -308,8 +329,9 @@ onBeforeUnmount(() => {
         <button class="back-button" aria-label="关闭点位设计，返回观测计划" @click="close"><ArrowLeft :size="19" /><span>返回</span></button>
         <div class="designer-title"><p class="eyebrow">WATER SAMPLING DESIGN</p><h2 id="sampling-title">采样点位设计</h2></div>
         <div class="designer-toolbar" aria-label="点位设计工具栏">
-          <button :class="['tool-button', { active: measuringPoints }]" :aria-pressed="measuringPoints" @click="togglePointMeasurement"><Ruler :size="16" />{{ measuringPoints ? '退出测距' : '测两点距离' }}</button>
-          <span class="tool-status" aria-live="polite">{{ measurementText }}</span>
+          <button :class="['tool-button', { active: measuringPoints && measurementMode === 'points' }]" :aria-pressed="measuringPoints && measurementMode === 'points'" @click="togglePointMeasurement('points')"><Ruler :size="16" />两点距离</button>
+          <button :class="['tool-button', { active: measuringPoints && measurementMode === 'shore' }]" :aria-pressed="measuringPoints && measurementMode === 'shore'" @click="togglePointMeasurement('shore')"><LocateFixed :size="16" />点到岸边</button>
+          <span :class="['tool-status', { active: measuringPoints }]" aria-live="polite">{{ measurementText }}</span>
         </div>
         <label class="reservoir-selector"><span>当前水库</span><select :value="selected.properties.id" aria-label="选择点位设计水库" @change="changeReservoir">
           <optgroup v-for="group in reservoirGroups" :key="group.basin" :label="group.basin">
@@ -389,7 +411,7 @@ onBeforeUnmount(() => {
 .designer-title{flex:0 0 auto}.designer-title h2{font-size:20px;margin:3px 0 0}
 .back-button,.fit-button,.restore-button{display:inline-flex;align-items:center;justify-content:center;gap:7px;border:1px solid #365462;background:#102b38;border-radius:9px;padding:9px 12px;cursor:pointer;color:#c6e0e8;font-size:12px}
 .designer-toolbar{display:flex;align-items:center;flex:1;min-width:260px;max-width:760px;height:42px;overflow:hidden;border:1px solid #365462;border-radius:10px;background:#091f2c}
-.tool-button{display:inline-flex;align-items:center;align-self:stretch;gap:7px;flex:0 0 auto;padding:0 14px;border:0;border-right:1px solid #365462;background:#143441;color:#c7e2e8;cursor:pointer;font-size:12px;font-weight:600}.tool-button.active{background:#1f6f63;color:#effffc}.tool-status{min-width:0;overflow:hidden;padding:0 13px;color:#8fb4bf;font-size:11px;text-overflow:ellipsis;white-space:nowrap}.tool-button.active+.tool-status{color:#8fe4d4}
+.tool-button{display:inline-flex;align-items:center;align-self:stretch;gap:7px;flex:0 0 auto;padding:0 14px;border:0;border-right:1px solid #365462;background:#143441;color:#c7e2e8;cursor:pointer;font-size:12px;font-weight:600}.tool-button.active{background:#1f6f63;color:#effffc}.tool-status{min-width:0;overflow:hidden;padding:0 13px;color:#8fb4bf;font-size:11px;text-overflow:ellipsis;white-space:nowrap}.tool-status.active{color:#8fe4d4}
 .reservoir-selector{display:flex;align-items:center;gap:10px;color:#8baab9;font-size:12px}
 .reservoir-selector select{max-width:240px;min-width:170px;padding:10px 12px;border:1px solid #365462;border-radius:9px;background:#102b38;color:#e5f2f7;font:inherit}
 .designer-body{display:grid;grid-template-columns:minmax(0,1fr) 360px;flex:1;min-height:0}

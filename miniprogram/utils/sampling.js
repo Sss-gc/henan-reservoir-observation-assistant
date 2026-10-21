@@ -65,6 +65,23 @@ function distanceToSegment(point, start, end) {
   return Math.hypot(point.x - start.x - ratio * dx, point.y - start.y - ratio * dy)
 }
 
+function nearestPointOnSegment(point, start, end) {
+  const dx = end.x - start.x, dy = end.y - start.y
+  const ratio = !dx && !dy ? 0
+    : clamp(((point.x - start.x) * dx + (point.y - start.y) * dy) / (dx * dx + dy * dy), 0, 1)
+  const x = start.x + ratio * dx, y = start.y + ratio * dy
+  return { x, y, distanceKm: Math.hypot(point.x - x, point.y - y) }
+}
+
+function nearestPointOnRing(point, ring) {
+  let result = { x: 0, y: 0, distanceKm: Infinity }
+  for (let index = 0; index < ring.length; index++) {
+    const candidate = nearestPointOnSegment(point, ring[index], ring[(index + 1) % ring.length])
+    if (candidate.distanceKm < result.distanceKm) result = candidate
+  }
+  return result
+}
+
 function distanceToRing(point, ring) {
   let result = Infinity
   for (let index = 0; index < ring.length; index++) {
@@ -114,6 +131,17 @@ function shoreDistanceInGeometry(point, geometry) {
   const polygon = polygonForPoint(point, geometry)
   if (!polygon) return 0
   return Math.min(distanceToRing(point, polygon.outer), ...polygon.holes.map((hole) => distanceToRing(point, hole)))
+}
+
+function samplingPointShoreMeasurement(reservoir, point) {
+  const geometry = createGeometry(reservoir)
+  const projected = geometry.project([point.longitude, point.latitude])
+  const polygon = polygonForPoint(projected, geometry)
+  if (!polygon) throw new Error('该点位不在当前库区水面范围内')
+  const nearest = [polygon.outer, ...polygon.holes]
+    .map((ring) => nearestPointOnRing(projected, ring))
+    .reduce((result, candidate) => candidate.distanceKm < result.distanceKm ? candidate : result)
+  return { ...geometry.unproject(nearest), distanceM: Math.round(nearest.distanceKm * 1000) }
 }
 
 function preferredShoreBuffer(reservoir) {
@@ -405,12 +433,18 @@ ${placemarks}
 `
 }
 
-function buildSamplingMap(plan, coordinateConverter, selectedPointId = 0, measuredPointIds = []) {
+function buildSamplingMap(plan, coordinateConverter, selectedPointId = 0, measuredPointIds = [], shoreMeasurement = null) {
   const mapPoints = plan.points.map((point) => coordinateConverter(point.longitude, point.latitude))
   const measuredIds = new Set(measuredPointIds)
   const measuredMapPoints = measuredPointIds
     .map((id) => mapPoints[plan.points.findIndex((point) => point.id === id)])
     .filter(Boolean)
+  const shoreMapPoint = shoreMeasurement
+    ? coordinateConverter(shoreMeasurement.longitude, shoreMeasurement.latitude)
+    : null
+  const measurementLinePoints = shoreMapPoint && measuredMapPoints.length === 1
+    ? [measuredMapPoints[0], shoreMapPoint]
+    : measuredMapPoints
   const center = mapPoints.reduce((result, point) => ({
     longitude: result.longitude + point.longitude / mapPoints.length,
     latitude: result.latitude + point.latitude / mapPoints.length,
@@ -431,8 +465,8 @@ function buildSamplingMap(plan, coordinateConverter, selectedPointId = 0, measur
       })),
       polyline: [
         ...(mapPoints.length > 1 ? [{ points: mapPoints, color: '#BF616ACC', width: 3, dottedLine: true }] : []),
-        ...(measuredMapPoints.length === 2
-          ? [{ points: measuredMapPoints, color: '#B48EADFF', width: 4, dottedLine: false }]
+        ...(measurementLinePoints.length === 2
+          ? [{ points: measurementLinePoints, color: '#B48EADFF', width: 4, dottedLine: false }]
           : []),
       ],
     },
@@ -442,6 +476,6 @@ function buildSamplingMap(plan, coordinateConverter, selectedPointId = 0, measur
 module.exports = {
   REFERENCE_COUNTS, MAX_POINT_COUNT, MIN_POINT_COUNT, defaultPointCount, standardPointCount, shorePointCount,
   schemePointCount, getSamplingSchemes, buildSamplingPlan, moveSamplingPoint, addSamplingPoint,
-  removeLastSamplingPoint, samplingPointDistanceM, buildSamplingMap, buildOviKml,
+  removeLastSamplingPoint, samplingPointDistanceM, samplingPointShoreMeasurement, buildSamplingMap, buildOviKml,
   largestRing, createGeometry, pointInGeometry,
 }

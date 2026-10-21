@@ -479,6 +479,15 @@ await check('采样点按参考方案或水面边界设计，并导出奥维可�
   home.selectPointForAdjustment({ detail: { markerId: 3 } })
   assert.deepEqual(Array.from(home.data.pointMeasureIds), [3], '完成一次测距后点击第三个点，应开始下一次测距')
   home.togglePointMeasurement(); assert.equal(home.data.pointMeasuring, false)
+  home.togglePointMeasurement(event({ mode: 'shore' })); assert.equal(home.data.pointMeasureMode, 'shore')
+  home.selectPointForAdjustment({ detail: { markerId: 1 } })
+  const shoreMeasurement = sampling.samplingPointShoreMeasurement(
+    data.getReservoir(home.data.selected.id), home.data.pointPlan.points[0])
+  assert.deepEqual(Array.from(home.data.pointMeasureIds), [1])
+  assert.equal(home.data.pointMeasureDistanceM, shoreMeasurement.distanceM)
+  assert.match(home.data.pointAdjustmentMessage, new RegExp(`距最近岸边：${shoreMeasurement.distanceM} 米`))
+  assert.equal(home.data.pointMap.polyline.length, 2); assert.equal(home.data.pointMap.polyline[1].points.length, 2)
+  home.togglePointMeasurement(event({ mode: 'shore' })); assert.equal(home.data.pointMeasuring, false)
   const originalPoint = home.data.pointPlan.points[0]
   home.selectPointForAdjustment({ detail: { markerId: originalPoint.id } })
   assert.equal(home.data.pointAdjustingId, originalPoint.id)
@@ -560,6 +569,7 @@ await check('采样点按参考方案或水面边界设计，并导出奥维可�
   assert.equal((fullTemplate.match(/bindtap="nudgeSelectedPoint"/g) || []).length, 4)
   assert.match(fullTemplate, /bindtap="togglePointAddition"/)
   assert.match(fullTemplate, /bindtap="togglePointMeasurement"/)
+  assert.match(fullTemplate, /data-mode="points"/); assert.match(fullTemplate, /data-mode="shore"/)
   assert.match(fullTemplate, /wx:elif="{{pointHasEdits}}"[^>]+bindtap="restorePointPlan"/)
   const dashboardStyles = fs.readFileSync(path.join(mini, 'pages/dashboard/dashboard.wxss'), 'utf8')
   assert.match(dashboardStyles, /\.reservoir-location[^}]+white-space:\s*nowrap/)
