@@ -228,6 +228,17 @@ function distanceKm(start, end) {
   return 2 * radius * Math.asin(Math.sqrt(value))
 }
 
+function samplingMetrics(points) {
+  const distances = points.slice(1).map((point, index) => distanceKm(points[index], point))
+  const routeDistanceKm = distances.reduce((sum, distance) => sum + distance, 0)
+  return {
+    routeDistanceKm: Number(routeDistanceKm.toFixed(1)),
+    meanSpacingKm: Number((routeDistanceKm / Math.max(1, distances.length)).toFixed(1)),
+    minimumSpacingKm: Number((distances.length ? Math.min(...distances) : 0).toFixed(1)),
+    minimumShoreDistanceM: Math.round(Math.min(...points.map((point) => point.shoreDistanceKm)) * 1000),
+  }
+}
+
 function scopedReferencePoints(reservoir, geometry = createGeometry(reservoir)) {
   const reference = referenceLayouts[reservoir.id]
   if (!reference) return []
@@ -289,9 +300,7 @@ function buildSamplingPlan(reservoir, request) {
     longitude: Number(point.longitude.toFixed(8)), latitude: Number(point.latitude.toFixed(8)),
     shoreDistanceKm: point.shoreDistance,
   }))
-  const distances = points.slice(1).map((point, index) => distanceKm(points[index], point))
-  const routeDistanceKm = distances.reduce((sum, distance) => sum + distance, 0)
-  const minimumShoreDistanceM = Math.round(Math.min(...points.map((point) => point.shoreDistanceKm)) * 1000)
+  const metrics = samplingMetrics(points)
   const accessVerificationRequired = scheme.candidateMode === 'shore-access'
   return {
     reservoirId: reservoir.id, reservoirName: reservoir.name_cn, basin: reservoir.basin,
@@ -299,12 +308,9 @@ function buildSamplingPlan(reservoir, request) {
     samplingAreaKm2: reservoir.area_km2, fullAreaKm2: reservoir.full_area_km2 || reservoir.area_km2,
     scopeRetainedPct: reservoir.scope_retained_pct || 100,
     count: points.length, prefix: '', points,
-    routeDistanceKm: Number(routeDistanceKm.toFixed(1)),
-    meanSpacingKm: Number((routeDistanceKm / Math.max(1, distances.length)).toFixed(1)),
-    minimumSpacingKm: Number((distances.length ? Math.min(...distances) : 0).toFixed(1)),
+    ...metrics,
     shorelineBufferM: Math.round((candidates?.appliedBuffer ?? preferredShoreBuffer(reservoir)) * 1000),
     targetShorelineBufferM: Math.round((candidates?.preferredBuffer ?? preferredShoreBuffer(reservoir)) * 1000),
-    minimumShoreDistanceM,
     bufferException: false,
     source: useReference ? 'reference' : accessVerificationRequired ? 'shore-candidates' : 'generated',
     referenceBasis: useReference ? reference.basis : '', referenceYear: useReference ? reference.year : null,
@@ -313,8 +319,27 @@ function buildSamplingPlan(reservoir, request) {
     candidateMode: scheme.candidateMode || 'water-pattern',
     accessVerificationRequired,
     accessNote: accessVerificationRequired ? (reservoir.shore_candidate_note || '道路、坡岸和管制条件须现场复核') : '',
-    fixedCount: false,
+    fixedCount: false, manualAdjustmentCount: 0,
   }
+}
+
+function moveSamplingPoint(reservoir, plan, pointId, longitude, latitude) {
+  if (![longitude, latitude].every(Number.isFinite)) throw new Error('目标坐标无效，请重新选择位置')
+  const geometry = createGeometry(reservoir)
+  const projected = geometry.project([longitude, latitude])
+  if (!pointInGeometry(projected, geometry)) throw new Error('点位必须保留在河南库区水面范围内')
+  let moved = false
+  const points = plan.points.map((point) => {
+    if (point.id !== pointId) return point
+    moved = true
+    return { ...point, longitude: Number(longitude.toFixed(8)), latitude: Number(latitude.toFixed(8)),
+      shoreDistanceKm: shoreDistanceInGeometry(projected, geometry), manuallyAdjusted: true }
+  })
+  if (!moved) throw new Error('没有找到需要调整的点位')
+  const metrics = samplingMetrics(points)
+  return { ...plan, ...metrics, points,
+    bufferException: metrics.minimumShoreDistanceM < plan.shorelineBufferM,
+    manualAdjustmentCount: points.filter((point) => point.manuallyAdjusted).length }
 }
 
 function escapeXml(value) {
@@ -325,9 +350,10 @@ function escapeXml(value) {
 function buildOviKml(reservoir, plan) {
   const documentName = `${reservoir.name_cn}-${plan.schemeLabel}采样点`
   const accessText = plan.accessVerificationRequired ? ' · 岸边可达候选，须现场复核道路、坡岸与管制条件' : ''
+  const manualText = plan.manualAdjustmentCount ? ` · ${plan.manualAdjustmentCount}个点位已手动调整` : ''
   const placemarks = plan.points.map((point) => `      <Placemark>
         <name>${escapeXml(point.name)}</name>
-        <description>${escapeXml(`${reservoir.name_cn} · 河南库区 · ${plan.schemeLabel} · ${reservoir.basin || ''} · 采样点 ${point.name}${accessText}`)}</description>
+        <description>${escapeXml(`${reservoir.name_cn} · 河南库区 · ${plan.schemeLabel} · ${reservoir.basin || ''} · 采样点 ${point.name}${point.manuallyAdjusted ? ' · 手动调整' : ''}${accessText}`)}</description>
         <styleUrl>#m_ylw-pushpin</styleUrl>
         <OvAttr><OvIcon>4</OvIcon><OvIconNum>0</OvIconNum></OvAttr>
         <OvCoordType>CGCS2000</OvCoordType>
@@ -337,7 +363,7 @@ function buildOviKml(reservoir, plan) {
 <kml xmlns="http://www.opengis.net/kml/2.2" xmlns:gx="http://www.google.com/kml/ext/2.2">
   <Document>
     <name>${escapeXml(documentName)}</name>
-    <description>${escapeXml(`${plan.samplingScope} · ${plan.schemeDescription}${accessText}`)}</description>
+    <description>${escapeXml(`${plan.samplingScope} · ${plan.schemeDescription}${manualText}${accessText}`)}</description>
     <Style id="s_ylw-pushpin"><IconStyle><scale>1.1</scale><Icon><href>http://maps.google.com/mapfiles/kml/pushpin/ylw-pushpin.png</href></Icon></IconStyle></Style>
     <StyleMap id="m_ylw-pushpin"><Pair><key>normal</key><styleUrl>#s_ylw-pushpin</styleUrl></Pair><Pair><key>highlight</key><styleUrl>#s_ylw-pushpin</styleUrl></Pair></StyleMap>
     <Folder>
@@ -349,7 +375,7 @@ ${placemarks}
 `
 }
 
-function buildSamplingMap(plan, coordinateConverter) {
+function buildSamplingMap(plan, coordinateConverter, selectedPointId = 0) {
   const mapPoints = plan.points.map((point) => coordinateConverter(point.longitude, point.latitude))
   const center = mapPoints.reduce((result, point) => ({
     longitude: result.longitude + point.longitude / mapPoints.length,
@@ -360,9 +386,12 @@ function buildSamplingMap(plan, coordinateConverter) {
     view: {
       ...center, scale: 11,
       markers: mapPoints.map((point, index) => ({
-        id: index + 1, ...point, iconPath: '/assets/marker-selected.png', width: 24, height: 30,
+        id: index + 1, ...point, iconPath: '/assets/marker-selected.png',
+        width: selectedPointId === index + 1 ? 40 : 32, height: selectedPointId === index + 1 ? 50 : 40,
         label: { content: plan.points[index].name,
-          padding: 3, fontSize: 9, color: '#06141d', bgColor: '#88c0d0', borderRadius: 7, anchorX: -5, anchorY: -33 },
+          padding: 5, fontSize: 11, color: '#06141d',
+          bgColor: selectedPointId === index + 1 ? '#ebcb8b' : plan.points[index].manuallyAdjusted ? '#d6a84d' : '#88c0d0',
+          borderRadius: 9, anchorX: -7, anchorY: selectedPointId === index + 1 ? -55 : -44 },
       })),
       polyline: mapPoints.length > 1 ? [{ points: mapPoints, color: '#BF616ACC', width: 3, dottedLine: true }] : [],
     },
@@ -371,6 +400,6 @@ function buildSamplingMap(plan, coordinateConverter) {
 
 module.exports = {
   REFERENCE_COUNTS, MAX_POINT_COUNT, defaultPointCount, standardPointCount, shorePointCount,
-  schemePointCount, getSamplingSchemes, buildSamplingPlan, buildSamplingMap, buildOviKml,
+  schemePointCount, getSamplingSchemes, buildSamplingPlan, moveSamplingPoint, buildSamplingMap, buildOviKml,
   largestRing, createGeometry, pointInGeometry,
 }

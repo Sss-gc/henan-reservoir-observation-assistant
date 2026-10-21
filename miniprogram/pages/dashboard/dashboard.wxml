@@ -1,6 +1,15 @@
 <page-meta background-color="#06141d" background-color-top="#06141d" background-color-bottom="#06141d" root-background-color="#06141d" page-style="background-color: #06141d;" />
 <view class="point-fullscreen" wx:if="{{pointPreviewOpen && selected && pointPlan && pointMap}}">
-  <view class="point-fullscreen-header"><button class="point-back-button" bindtap="closeSamplingPreview">‹</button><picker class="point-reservoir-picker" mode="selector" range="{{reservoirs}}" range-key="pickerLabel" value="{{pointReservoirIndex}}" bindchange="selectPointReservoir"><view class="point-reservoir-trigger"><view class="point-reservoir-copy"><view class="point-header-title">{{selected.name_cn}} · {{pointPlan.count}}点</view><view class="point-header-note">河南库区 · {{pointPlan.samplingAreaKm2}} km² · 点击切换水库</view></view><view class="point-switch-label">切换⌄</view></view></picker></view>
+  <view class="point-fullscreen-header"><button class="point-back-button" bindtap="closeSamplingPreview">‹</button><view class="point-reservoir-trigger"><view class="point-reservoir-copy"><view class="point-header-title">{{selected.name_cn}} · {{pointPlan.count}}点</view><view class="point-header-note">河南库区 · {{pointPlan.samplingAreaKm2}} km²</view></view><view class="point-switch-label {{pointPickerOpen ? 'active' : ''}}" role="button" aria-label="{{pointPickerOpen ? '收起水库选择' : '切换水库'}}" bindtap="togglePointReservoirPicker" hover-class="interactive-pressed" hover-stay-time="80">{{pointPickerOpen ? '收起⌃' : '切换⌄'}}</view></view></view>
+  <view wx:if="{{pointPickerOpen}}" class="point-reservoir-panel">
+    <view class="point-reservoir-panel-title"><text>选择水库</text><text>按流域分组 · 共 {{pointReservoirOptions.length}} 座</text></view>
+    <scroll-view scroll-y="{{true}}" class="point-reservoir-list" enhanced="{{true}}" show-scrollbar="{{false}}">
+      <block wx:for="{{pointReservoirOptions}}" wx:key="id">
+        <view wx:if="{{item.showBasinHeader}}" class="point-reservoir-basin"><view class="point-reservoir-basin-dot" style="background: {{item.basinColor}};"></view><text>{{item.basin}}</text><text class="point-reservoir-basin-count">{{item.basinResultCount}} 座</text></view>
+        <view class="point-reservoir-option {{selected.id === item.id ? 'active' : ''}}" data-id="{{item.id}}" bindtap="selectPointReservoir" role="button" aria-label="选择{{item.name_cn}}" hover-class="interactive-pressed" hover-stay-time="80"><view class="point-reservoir-option-copy"><view>{{item.name_cn}}</view><text>{{item.city}}</text></view><text class="point-reservoir-option-state">{{selected.id === item.id ? '已选' : '›'}}</text></view>
+      </block>
+    </scroll-view>
+  </view>
   <view class="point-scheme-panel">
     <scroll-view scroll-x="{{true}}" class="point-scheme-strip" enhanced="{{true}}" show-scrollbar="{{false}}">
       <view wx:for="{{pointSchemes}}" wx:key="id" class="point-scheme-option {{pointSchemeId === item.id ? 'active' : ''}}" data-id="{{item.id}}" bindtap="selectPointScheme" role="button" aria-label="选择{{item.label}}方案，{{item.count}}点" hover-class="interactive-pressed" hover-stay-time="80">
@@ -9,11 +18,20 @@
       </view>
     </scroll-view>
     <view class="point-scheme-summary"><text>{{pointPlan.schemeDescription}}</text><text wx:if="{{pointPlan.source === 'generated'}}"> · 自适应离岸 {{pointPlan.shorelineBufferM}} m</text><text wx:elif="{{pointPlan.source === 'reference'}}"> · 保留原坐标与顺序</text></view>
+    <view wx:if="{{pointPlan.manualAdjustmentCount && pointPlan.bufferException}}" class="point-buffer-warning">手动调整后有点位低于原方案离岸距离，请结合岸线和现场条件复核。</view>
     <view wx:if="{{pointPlan.accessVerificationRequired}}" class="point-buffer-warning">这些点仅是沿真实岸线生成的岸边可达候选；道路、坡岸、围栏及管制条件仍须现场复核。</view>
   </view>
-  <map id="sampling-full-map" class="point-fullscreen-map" longitude="{{pointMap.longitude}}" latitude="{{pointMap.latitude}}" scale="{{pointMap.scale}}" min-scale="5" max-scale="19" markers="{{pointMap.markers}}" polyline="{{pointMap.polyline}}" enable-zoom="{{true}}" enable-scroll="{{true}}" enable-rotate="{{false}}" show-compass="{{false}}" show-scale="{{true}}"></map>
+  <view class="point-adjustment-panel {{pointAdjustmentError ? 'error' : ''}}">
+    <view class="point-adjustment-bar"><view class="point-adjustment-copy"><view wx:if="{{pointAdjustingId}}">调整点位 {{pointPlan.points[pointAdjustingId - 1].name}}</view><view wx:else="{{true}}">手动调整点位</view><text>{{pointAdjustmentMessage}}</text></view><view wx:if="{{pointAdjustingId}}" class="point-adjustment-cancel" role="button" bindtap="cancelPointAdjustment">完成</view><view wx:elif="{{pointPlan.manualAdjustmentCount}}" class="point-adjustment-cancel" role="button" bindtap="restorePointPlan">恢复</view></view>
+    <view wx:if="{{pointAdjustingId}}" class="point-nudge-controls" aria-label="点位方向微调按键">
+      <view class="point-nudge-spacer"></view><view class="point-nudge-button" data-direction="up" role="button" aria-label="向上移动约20米" bindtap="nudgeSelectedPoint" hover-class="interactive-pressed">↑</view><view class="point-nudge-spacer"></view>
+      <view class="point-nudge-button" data-direction="left" role="button" aria-label="向左移动约20米" bindtap="nudgeSelectedPoint" hover-class="interactive-pressed">←</view><view class="point-nudge-center">20m</view><view class="point-nudge-button" data-direction="right" role="button" aria-label="向右移动约20米" bindtap="nudgeSelectedPoint" hover-class="interactive-pressed">→</view>
+      <view class="point-nudge-spacer"></view><view class="point-nudge-button" data-direction="down" role="button" aria-label="向下移动约20米" bindtap="nudgeSelectedPoint" hover-class="interactive-pressed">↓</view><view class="point-nudge-spacer"></view>
+    </view>
+  </view>
+  <map id="sampling-full-map" class="point-fullscreen-map" longitude="{{pointMap.longitude}}" latitude="{{pointMap.latitude}}" scale="{{pointMap.scale}}" min-scale="5" max-scale="19" markers="{{pointMap.markers}}" polyline="{{pointMap.polyline}}" enable-zoom="{{true}}" enable-scroll="{{true}}" enable-rotate="{{false}}" show-compass="{{false}}" show-scale="{{true}}" bindmarkertap="selectPointForAdjustment" bindlabeltap="selectPointForAdjustment"></map>
   <view class="point-fullscreen-footer">
-    <view class="point-preview-note">将导出：{{pointPlan.schemeLabel}} · {{pointPlan.count}} 点；虚线仅表示编号顺序，不是安全航线</view>
+    <view class="point-preview-note">将导出：{{pointPlan.schemeLabel}} · {{pointPlan.count}} 点{{pointPlan.manualAdjustmentCount ? ' · 已手调 ' + pointPlan.manualAdjustmentCount + ' 点' : ''}}；虚线仅表示编号顺序，不是安全航线</view>
     <view class="point-footer-actions"><view class="point-count-control"><button disabled="{{!pointSchemeAdjustable || pointCount == 6}}" bindtap="decreasePointCount">−</button><text>{{pointCount}} 点{{pointSchemeAdjustable ? '' : ' · 固定'}}</text><button disabled="{{!pointSchemeAdjustable || pointCount >= maxPointCount}}" bindtap="increasePointCount">＋</button></view><button class="point-export-button" loading="{{pointExportLoading}}" disabled="{{pointExportLoading}}" bindtap="exportPointKml">{{pointExportLoading ? '生成中…' : '导出当前方案'}}</button></view>
     <view wx:if="{{pointExportError}}" class="point-export-error">{{pointExportError}}</view>
   </view>

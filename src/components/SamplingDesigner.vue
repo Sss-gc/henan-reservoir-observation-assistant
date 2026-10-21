@@ -5,7 +5,7 @@ import { ArrowLeft, CircleAlert, Download, LocateFixed, Minus, Plus, RefreshCw }
 import type { ReservoirFeature, SamplingReferenceLayouts, SamplingReservoir, SamplingScopeCollection } from '../types'
 import {
   buildOviKml, buildSamplingPlan, createSamplingReservoir, getSamplingSchemes,
-  MAX_POINT_COUNT, MIN_POINT_COUNT, reservoirBasin,
+  MAX_POINT_COUNT, MIN_POINT_COUNT, moveSamplingPoint, reservoirBasin,
 } from '../services/sampling'
 import type { SamplingPlan, SamplingScheme } from '../services/sampling'
 
@@ -20,6 +20,8 @@ const plan = shallowRef<SamplingPlan | null>(null)
 const loading = ref(true)
 const error = ref('')
 const exportMessage = ref('')
+const adjustmentMessage = ref('拖动任一编号点可手动调整位置；点位必须保留在河南库区水面内。')
+const adjustmentError = ref(false)
 const basemapUnavailable = ref(false)
 const schemeId = ref<SamplingScheme['id']>('sync')
 const countInput = ref(0)
@@ -37,7 +39,10 @@ const reservoirGroups = computed(() => basinOrder.map((basin) => ({
     (feature.properties.basin || reservoirBasin(feature.properties.id)) === basin),
 })))
 const sourceLabel = computed(() => plan.value?.source === 'reference'
-  ? '参考实测点位' : plan.value?.source === 'shore-candidates' ? '岸边候选点位' : '自动设计点位')
+  ? `参考实测点位${plan.value?.manualAdjustmentCount ? ` · 手调${plan.value.manualAdjustmentCount}点` : ''}`
+  : plan.value?.source === 'shore-candidates'
+    ? `岸边候选点位${plan.value?.manualAdjustmentCount ? ` · 手调${plan.value.manualAdjustmentCount}点` : ''}`
+    : `自动设计点位${plan.value?.manualAdjustmentCount ? ` · 手调${plan.value.manualAdjustmentCount}点` : ''}`)
 
 function close() { emit('close') }
 
@@ -69,6 +74,8 @@ function rebuild(count?: number, nextScheme = schemeId.value) {
   if (!scopes.value) return
   error.value = ''
   exportMessage.value = ''
+  adjustmentMessage.value = '拖动任一编号点可手动调整位置；点位必须保留在河南库区水面内。'
+  adjustmentError.value = false
   try {
     const scope = scopes.value.features.find((feature) => feature.properties.id === props.selected.properties.id)
     if (!scope) throw new Error('该水库暂缺河南库区采样边界')
@@ -117,13 +124,9 @@ function initializeMap() {
   resizeObserver.observe(mapElement.value)
 }
 
-function drawPlan() {
+function drawPlan(shouldFit = true) {
   if (!map || !designLayer || !reservoir.value || !plan.value) return
   designLayer.clearLayers()
-  const polygons = reservoir.value.polygons.map((polygon) =>
-    polygon.map((ring) => ring.map(([longitude, latitude]) => L.latLng(latitude, longitude))))
-  L.polygon(polygons, { color: '#168b99', weight: 1.5, fillColor: '#51bfd0', fillOpacity: 0.16, interactive: false })
-    .addTo(designLayer)
   const coordinates = plan.value.points.map((point) => L.latLng(point.latitude, point.longitude))
   L.polyline(coordinates, { color: '#b44d67', weight: 2, opacity: 0.8, dashArray: '5 7', interactive: false })
     .addTo(designLayer)
@@ -131,17 +134,35 @@ function drawPlan() {
     const popup = document.createElement('div')
     popup.className = 'point-popup'
     popup.textContent = `${point.name} · ${point.longitude.toFixed(8)}, ${point.latitude.toFixed(8)} · WGS84`
-    L.marker([point.latitude, point.longitude], {
+    const marker = L.marker([point.latitude, point.longitude], {
+      draggable: true,
       icon: L.divIcon({
-        className: 'sampling-point-icon',
+        className: `sampling-point-icon${point.manuallyAdjusted ? ' manually-adjusted' : ''}`,
         html: `<span>${point.name}</span>`,
         iconSize: [28, 28], iconAnchor: [14, 14],
       }),
       title: `采样点 ${point.name}`,
       alt: `采样点 ${point.name}`,
     }).bindPopup(popup).addTo(designLayer)
+    marker.on('dragstart', () => {
+      adjustmentError.value = false
+      adjustmentMessage.value = `正在调整 ${point.name}，松开后保存新位置。`
+    })
+    marker.on('dragend', () => {
+      if (!reservoir.value || !plan.value) return
+      const position = marker.getLatLng()
+      try {
+        plan.value = moveSamplingPoint(reservoir.value, plan.value, point.id, position.lng, position.lat)
+        adjustmentError.value = false
+        adjustmentMessage.value = `${point.name} 已移动；坐标、距离指标和导出 KML 已同步更新。`
+      } catch (cause) {
+        adjustmentError.value = true
+        adjustmentMessage.value = cause instanceof Error ? cause.message : '点位移动失败，请重试'
+      }
+      drawPlan(false)
+    })
   }
-  fitMap()
+  if (shouldFit) fitMap()
 }
 
 function fitMap() {
@@ -209,7 +230,7 @@ onBeforeUnmount(() => {
             <div class="map-caption"><strong>{{ selected.properties.name_cn }}</strong><span v-if="plan">河南库区 {{ plan.samplingAreaKm2 }} km² · {{ plan.count }} 个点</span></div>
             <div class="design-map-actions"><button class="fit-button" aria-label="放大点位地图" @click="changeMapZoom(1)"><Plus :size="16" /></button><button class="fit-button" aria-label="缩小点位地图" @click="changeMapZoom(-1)"><Minus :size="16" /></button><button class="fit-button" @click="fitMap"><LocateFixed :size="15" />适配点位</button></div>
           </div>
-          <div class="route-note">虚线表示编号顺序，不是安全航线<span v-if="basemapUnavailable"> · 底图暂不可用，边界与点位仍可查看</span></div>
+          <div class="route-note"><span :class="['adjustment-state', { error: adjustmentError }]">{{ adjustmentMessage }}</span><br>虚线表示编号顺序，不是安全航线<span v-if="basemapUnavailable"> · 底图暂不可用，点位仍可查看</span></div>
         </section>
         <aside class="design-controls">
           <div v-if="loading" class="design-state" role="status"><RefreshCw class="spin" :size="20" />正在读取点位设计数据</div>
@@ -225,6 +246,8 @@ onBeforeUnmount(() => {
               <p class="scheme-description">{{ plan.schemeDescription }}</p>
               <p v-if="plan.source === 'reference'" class="source-note">保留参考坐标与顺序，统一从 01 编号。调整点数后重新自动布点。</p>
               <p v-else-if="plan.source === 'generated'" class="source-note">自动点位按水面边界筛选，自适应离岸 {{ plan.shorelineBufferM }} m。</p>
+              <p v-if="plan.manualAdjustmentCount" class="manual-note">已有 {{ plan.manualAdjustmentCount }} 个点位手动调整；恢复默认可撤销全部调整。</p>
+              <p v-if="plan.manualAdjustmentCount && plan.bufferException" class="shore-note">手动调整后有点位低于原方案离岸距离，请结合岸线和现场条件复核。</p>
               <p v-if="plan.accessVerificationRequired" class="shore-note">{{ plan.accessNote }}</p>
             </section>
             <section class="control-section">
@@ -234,7 +257,7 @@ onBeforeUnmount(() => {
                 <input v-model="countInput" type="number" :min="MIN_POINT_COUNT" :max="MAX_POINT_COUNT" step="1" aria-label="采样点数量" @change="applyCount" @keydown.enter="applyCount" />
                 <button :disabled="plan.count >= MAX_POINT_COUNT" aria-label="增加采样点" @click="rebuild(plan.count + 1)"><Plus :size="18" /></button>
               </div>
-              <button class="restore-button" :disabled="plan.count === defaultCount" @click="rebuild()">恢复默认 {{ defaultCount }} 点</button>
+              <button class="restore-button" :disabled="plan.count === defaultCount && !plan.manualAdjustmentCount" @click="rebuild()">恢复默认 {{ defaultCount }} 点</button>
               <dl class="design-metrics">
                 <div><dt>编号连线总长</dt><dd>{{ plan.routeDistanceKm }}<small> km</small></dd></div>
                 <div><dt>相邻点平均间距</dt><dd>{{ plan.meanSpacingKm }}<small> km</small></dd></div>
@@ -246,7 +269,7 @@ onBeforeUnmount(() => {
               <details>
                 <summary>点位坐标明细 <span>WGS84 · {{ plan.count }} 点</span></summary>
                 <div class="coordinate-scroll"><table><thead><tr><th>编号</th><th>经度</th><th>纬度</th></tr></thead><tbody>
-                  <tr v-for="point in plan.points" :key="point.id"><td>{{ point.name }}</td><td>{{ point.longitude.toFixed(8) }}</td><td>{{ point.latitude.toFixed(8) }}</td></tr>
+                  <tr v-for="point in plan.points" :key="point.id"><td>{{ point.name }}<small v-if="point.manuallyAdjusted"> 手调</small></td><td>{{ point.longitude.toFixed(8) }}</td><td>{{ point.latitude.toFixed(8) }}</td></tr>
                 </tbody></table></div>
               </details>
             </section>
@@ -280,15 +303,15 @@ onBeforeUnmount(() => {
 .map-caption strong{font-size:15px}.map-caption span{font-size:11px;color:#aad1da}
 .fit-button{flex-shrink:0}
 .design-map-actions{display:flex;align-items:center;gap:6px;flex-shrink:0}
-.route-note{padding:0 18px 12px;font-size:11px;color:#91afbd;line-height:1.6}.route-note span{color:#d9a789}
+.route-note{padding:0 18px 12px;font-size:11px;color:#91afbd;line-height:1.6}.route-note span{color:#d9a789}.route-note .adjustment-state{color:#83d7ca}.route-note .adjustment-state.error{color:#efad98}
 .design-controls{min-height:0;overflow:auto;background:#0a1d29;border-left:1px solid var(--line)}
 .control-section{padding:22px;border-bottom:1px solid var(--line)}.control-section h3{margin:5px 0 14px;font-size:16px}
 .scheme-options{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .scheme-options button{display:flex;flex-direction:column;gap:8px;padding:13px 10px;border:1px solid #365462;border-radius:11px;background:#102b38;cursor:pointer;text-align:left;color:#bdd1dc}
 .scheme-options button.active{border-color:#2dd4bf;background:#16453f;color:#e2fff9}
 .scheme-options strong{font-size:13px;display:flex;gap:6px;align-items:center}.scheme-options small{font-size:9px;font-weight:400;padding:2px 4px;border-radius:4px;background:#ffffff12;color:#a7d9cf}.scheme-options span{font-size:11px}
-.scheme-description,.source-note,.shore-note{font-size:12px;line-height:1.7;margin:12px 0 0;color:#b1cbd6}
-.source-note{color:#83a5b6}.shore-note{color:#e1b393;background:#c0795314;border-radius:8px;padding:10px}
+.scheme-description,.source-note,.manual-note,.shore-note{font-size:12px;line-height:1.7;margin:12px 0 0;color:#b1cbd6}
+.source-note{color:#83a5b6}.manual-note{color:#83d7ca}.shore-note{color:#e1b393;background:#c0795314;border-radius:8px;padding:10px}
 .control-heading{display:flex;align-items:center;justify-content:space-between;gap:10px}.control-heading h3{margin:0}.control-heading span{color:#83a5b6;font-size:11px}
 .count-control{display:flex;align-items:center;justify-content:space-between;margin-top:15px;border:1px solid #365462;border-radius:10px;overflow:hidden;background:#091f2c}
 .count-control button{display:grid;place-items:center;width:48px;align-self:stretch;border:0;background:#163643;cursor:pointer;color:#d2e9ee}
@@ -297,11 +320,11 @@ onBeforeUnmount(() => {
 button:disabled{opacity:.4;cursor:default}.restore-button{margin-top:10px;width:100%;background:transparent;font-size:11px}
 .design-metrics{display:grid;grid-template-columns:1fr 1fr;gap:18px 10px;margin:22px 0 0}.design-metrics dt{color:#83a5b6;font-size:11px}.design-metrics dd{margin:5px 0 0;font-size:23px;font-weight:600;color:#d8f5f1}.design-metrics dd small{font-size:11px;font-weight:400;color:#83a5b6}.design-metrics dd.source-value{font-size:13px;line-height:28px}
 .coordinate-section{padding-top:16px;padding-bottom:16px}summary{cursor:pointer;font-size:13px}summary span{float:right;color:#83a5b6;font-size:10px}
-.coordinate-scroll{max-height:240px;overflow:auto;margin-top:14px}table{width:100%;border-collapse:collapse;font-size:10px;font-variant-numeric:tabular-nums}th,td{text-align:right;padding:8px 4px;border-bottom:1px solid var(--line)}th{color:#83a5b6;position:sticky;top:0;background:#0a1d29}th:first-child,td:first-child{text-align:left}
+.coordinate-scroll{max-height:240px;overflow:auto;margin-top:14px}table{width:100%;border-collapse:collapse;font-size:10px;font-variant-numeric:tabular-nums}th,td{text-align:right;padding:8px 4px;border-bottom:1px solid var(--line)}th{color:#83a5b6;position:sticky;top:0;background:#0a1d29}th:first-child,td:first-child{text-align:left}.coordinate-scroll td small{color:#f1c875;font-size:8px}
 .export-area{padding:22px}.export-button{width:100%;display:flex;align-items:center;justify-content:center;gap:8px;padding:14px 10px;border:1px solid #58cbb9;border-radius:10px;background:#225d54;color:#edfffc;font-weight:600;font-size:14px;cursor:pointer}.export-button:hover{background:#2b7266}
 .export-area p{font-size:11px;line-height:1.7;color:#9fbdca;margin:10px 0 0}.export-area .export-status{color:#82e2cb}.export-area .design-footnote{color:#7193a4;margin-top:18px}
 .design-state{padding:30px 22px;display:flex;flex-wrap:wrap;align-items:center;gap:10px;font-size:13px}.design-state.error{color:#efb099}.design-state button{border:1px solid #365462;border-radius:8px;background:#102b38;color:#c6e0e8;padding:8px 12px;cursor:pointer}
-.design-map :deep(.sampling-point-icon){border:0;background:transparent}.design-map :deep(.sampling-point-icon span){display:grid;place-items:center;width:28px;height:28px;border:2px solid #eafffa;border-radius:50%;background:#116b63;color:white;box-shadow:0 2px 7px #001e3440;font:700 11px/1 system-ui}
+.design-map :deep(.sampling-point-icon){border:0;background:transparent}.design-map :deep(.sampling-point-icon span){display:grid;place-items:center;width:28px;height:28px;border:2px solid #eafffa;border-radius:50%;background:#116b63;color:white;box-shadow:0 2px 7px #001e3440;cursor:grab;font:700 11px/1 system-ui}.design-map :deep(.sampling-point-icon.manually-adjusted span){background:#9a6718;border-color:#fff4ca}.design-map :deep(.leaflet-drag-target .sampling-point-icon span){cursor:grabbing}
 .design-map :deep(.point-popup){font-size:12px;line-height:1.7}
 :where(button,input,select,summary):focus-visible{outline:2px solid #70e9d5;outline-offset:3px}
 @media(max-width:800px){.designer-body{display:block;overflow:auto}.design-map{height:auto;min-height:0}.design-map-viewport{flex:none;height:clamp(280px,46vh,440px)}.design-controls{overflow:visible;border-left:0}.designer-header{padding:12px;gap:10px;flex-wrap:wrap}.designer-title h2{font-size:17px}.reservoir-selector{width:100%}.reservoir-selector select{max-width:none;flex:1}.control-section{padding:18px}.design-metrics{grid-template-columns:repeat(4,1fr);gap:10px}.export-area{padding:18px;padding-bottom:max(18px,env(safe-area-inset-bottom))}}

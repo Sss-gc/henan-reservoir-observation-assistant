@@ -3,6 +3,8 @@ const sampling = require('../../utils/sampling')
 const { showTab, prepareTabPage } = require('../../utils/tab-page')
 
 const BASIN_ORDER = ['黄河流域', '淮河流域', '长江流域', '海河流域']
+const POINT_NUDGE_METERS = 20
+const POINT_ADJUSTMENT_IDLE_MESSAGE = '点选编号点后，用方向键每次移动约 20 米'
 const basinOrder = Object.fromEntries(BASIN_ORDER.map((name, index) => [name, index]))
 const reservoirOptions = data.getReservoirList()
   .sort((a, b) => basinOrder[a.basin] - basinOrder[b.basin] || a.code.localeCompare(b.code))
@@ -43,7 +45,11 @@ Page({
     passTotal: 0, visibleCount: 10, passFilter: '全部', weather: null, weatherPublishedDate: '', loading: false, syncError: '',
     map: null, pointPreviewOpen: false, pointPlan: null, pointMap: null, pointCount: 0,
     pointSchemes: [], pointSchemeId: 'sync', pointSchemeAdjustable: true,
-    pointReservoirIndex: 0, pointExportLoading: false, pointExportError: '',
+    pointReservoirIndex: 0, pointPickerOpen: false,
+    pointReservoirOptions: groupReservoirOptions(reservoirOptions),
+    pointAdjustingId: 0, pointAdjustmentError: false,
+    pointAdjustmentMessage: POINT_ADJUSTMENT_IDLE_MESSAGE,
+    pointExportLoading: false, pointExportError: '',
     maxPointCount: sampling.MAX_POINT_COUNT,
   },
   onLoad(options) {
@@ -146,7 +152,9 @@ Page({
       this._mapReady = false
       this._pointMapPoints = preview.pointMap.includePoints
       this.setTabBarHidden(true)
-      this.setData({ pointPreviewOpen: true, pointSchemes: preview.pointSchemes,
+      this.setData({ pointPreviewOpen: true, pointPickerOpen: false, pointAdjustingId: 0,
+        pointAdjustmentError: false, pointAdjustmentMessage: POINT_ADJUSTMENT_IDLE_MESSAGE,
+        pointSchemes: preview.pointSchemes,
         pointSchemeId: preview.pointSchemeId, pointSchemeAdjustable: preview.pointSchemeAdjustable,
         pointPlan: preview.pointPlan, pointMap: preview.pointMap.view, pointCount: preview.pointPlan.count,
         pointReservoirIndex: this.data.reservoirs.findIndex((item) => item.id === reservoir.id), pointExportError: '' }, () => {
@@ -160,7 +168,7 @@ Page({
   },
   closeSamplingPreview() {
     this._pointMapReady = false
-    this.setData({ pointPreviewOpen: false }, () => {
+    this.setData({ pointPreviewOpen: false, pointPickerOpen: false, pointAdjustingId: 0 }, () => {
       this.setTabBarHidden(false)
       this._mapContext = wx.createMapContext('reservoir-map')
       this._mapReady = true
@@ -172,18 +180,29 @@ Page({
       points: this._pointMapPoints, padding: [34, 34, 34, 34],
     })
   },
+  togglePointReservoirPicker() {
+    const pointPickerOpen = !this.data.pointPickerOpen
+    this.setData({ pointPickerOpen }, () => {
+      if (!pointPickerOpen) this.fitPointPreview()
+    })
+  },
   selectPointReservoir(event) {
-    const index = Number(event.detail.value)
+    const requestedId = event.currentTarget?.dataset?.id
+    const index = requestedId
+      ? this.data.reservoirs.findIndex((item) => item.id === requestedId)
+      : Number(event.detail?.value)
     const selected = this.data.reservoirs[index]
     if (!selected) return
     if (selected.id === this.data.selected.id) {
-      this.setData({ pointReservoirIndex: index })
+      this.setData({ pointReservoirIndex: index, pointPickerOpen: false }, () => this.fitPointPreview())
       return
     }
     this.loadReservoir(selected.id)
     const preview = createPointPreview(data.getReservoir(selected.id), this.data.pointSchemeId)
     this._pointMapPoints = preview.pointMap.includePoints
-    this.setData({ pointReservoirIndex: index, pointSchemes: preview.pointSchemes,
+    this.setData({ pointReservoirIndex: index, pointPickerOpen: false, pointAdjustingId: 0,
+      pointAdjustmentError: false, pointAdjustmentMessage: POINT_ADJUSTMENT_IDLE_MESSAGE,
+      pointSchemes: preview.pointSchemes,
       pointSchemeId: preview.pointSchemeId, pointSchemeAdjustable: preview.pointSchemeAdjustable,
       pointPlan: preview.pointPlan, pointMap: preview.pointMap.view, pointCount: preview.pointPlan.count,
       pointExportError: '' }, () => this.fitPointPreview())
@@ -193,8 +212,51 @@ Page({
     this._pointMapPoints = preview.pointMap.includePoints
     this.setData({ pointSchemes: preview.pointSchemes, pointSchemeId: preview.pointSchemeId,
       pointSchemeAdjustable: preview.pointSchemeAdjustable, pointPlan: preview.pointPlan,
-      pointMap: preview.pointMap.view, pointCount: preview.pointPlan.count, pointExportError: '' },
+      pointMap: preview.pointMap.view, pointCount: preview.pointPlan.count, pointAdjustingId: 0,
+      pointAdjustmentError: false, pointAdjustmentMessage: POINT_ADJUSTMENT_IDLE_MESSAGE,
+      pointExportError: '' },
       () => this.fitPointPreview())
+  },
+  selectPointForAdjustment(event) {
+    const pointId = Number(event.detail?.markerId)
+    const point = this.data.pointPlan?.points.find((item) => item.id === pointId)
+    if (!point) return
+    const pointMap = sampling.buildSamplingMap(this.data.pointPlan, data.wgs84ToGcj02, pointId)
+    this.setData({ pointAdjustingId: pointId, pointAdjustmentError: false,
+      pointAdjustmentMessage: `已选 ${point.name}，点击方向键精细移动`,
+      'pointMap.markers': pointMap.view.markers })
+  },
+  cancelPointAdjustment() {
+    const pointMap = sampling.buildSamplingMap(this.data.pointPlan, data.wgs84ToGcj02)
+    this.setData({ pointAdjustingId: 0, pointAdjustmentError: false,
+      pointAdjustmentMessage: POINT_ADJUSTMENT_IDLE_MESSAGE,
+      'pointMap.markers': pointMap.view.markers })
+  },
+  restorePointPlan() {
+    this.rebuildPointPreview(this.data.pointPlan.count, this.data.pointSchemeId)
+  },
+  nudgeSelectedPoint(event) {
+    if (!this.data.pointAdjustingId) return
+    const direction = event.currentTarget?.dataset?.direction
+    const point = this.data.pointPlan.points.find((item) => item.id === this.data.pointAdjustingId)
+    if (!point || !['up', 'down', 'left', 'right'].includes(direction)) return
+    const latitudeDelta = POINT_NUDGE_METERS / 110574
+    const longitudeDelta = POINT_NUDGE_METERS / (111320 * Math.cos(point.latitude * Math.PI / 180))
+    const longitude = point.longitude + (direction === 'right' ? longitudeDelta : direction === 'left' ? -longitudeDelta : 0)
+    const latitude = point.latitude + (direction === 'up' ? latitudeDelta : direction === 'down' ? -latitudeDelta : 0)
+    const directionLabel = { up: '上', down: '下', left: '左', right: '右' }[direction]
+    try {
+      const nextPlan = sampling.moveSamplingPoint(data.getReservoir(this.data.selected.id), this.data.pointPlan,
+        this.data.pointAdjustingId, longitude, latitude)
+      const pointMap = sampling.buildSamplingMap(nextPlan, data.wgs84ToGcj02, this.data.pointAdjustingId)
+      this._pointMapPoints = pointMap.includePoints
+      this.setData({ pointPlan: nextPlan, pointAdjustmentError: false,
+        pointAdjustmentMessage: `${point.name} 已向${directionLabel}移动约 ${POINT_NUDGE_METERS} 米，可继续微调`,
+        'pointMap.markers': pointMap.view.markers, 'pointMap.polyline': pointMap.view.polyline })
+    } catch (error) {
+      this.setData({ pointAdjustmentError: true,
+        pointAdjustmentMessage: error?.message || '点位移动失败，请换一个方向重试' })
+    }
   },
   selectPointScheme(event) {
     const schemeId = event.currentTarget.dataset.id
@@ -275,6 +337,10 @@ Page({
   },
   onBackPress() {
     if (!this.data.pointPreviewOpen) return false
+    if (this.data.pointPickerOpen) {
+      this.setData({ pointPickerOpen: false }, () => this.fitPointPreview())
+      return true
+    }
     this.closeSamplingPreview()
     return true
   },

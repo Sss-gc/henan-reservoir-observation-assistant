@@ -7,7 +7,7 @@ import type {
 } from '../types'
 import {
   buildOviKml, buildSamplingPlan, createGeometry, createSamplingReservoir, getSamplingSchemes,
-  pointInGeometry,
+  moveSamplingPoint, pointInGeometry,
 } from './sampling'
 import type { SamplingPlan, SamplingScheme } from './sampling'
 
@@ -15,6 +15,7 @@ const require = createRequire(new URL('../../miniprogram/package.json', import.m
 const mini = require('./utils/sampling.js') as {
   buildSamplingPlan: (reservoir: SamplingReservoir, request?: number | { schemeId: 'sync' | 'shore'; count?: number }) => SamplingPlan
   buildOviKml: typeof buildOviKml
+  moveSamplingPoint: typeof moveSamplingPoint
   getSamplingSchemes: (reservoir: SamplingReservoir) => SamplingScheme[]
 }
 const miniReservoirs = require('./data/reservoirs.js') as SamplingReservoir[]
@@ -100,5 +101,24 @@ describe('web and mini program sampling parity', () => {
     expect(danjiangkouPlan.count).toBe(references[danjiangkou.id].points.length)
     expect(danjiangkouPlan.points.some((point) => point.longitude === 111 && point.latitude === 32)).toBe(false)
     expect(danjiangkouPlan.scopeRetainedPct).toBeLessThan(99.95)
+  })
+
+  it('moves a point inside the reservoir, recalculates metrics, and exports the adjusted coordinates identically', () => {
+    const reservoir = reservoirs.find((item) => item.id === 'HN_RSV_007')!
+    const originalPlan = buildSamplingPlan(reservoir, references)
+    const original = originalPlan.points[0]
+    const longitude = original.longitude + 0.00001
+    const latitude = original.latitude + 0.00001
+    const moved = moveSamplingPoint(reservoir, originalPlan, original.id, longitude, latitude)
+    const miniMoved = mini.moveSamplingPoint(miniById.get(reservoir.id)!, originalPlan, original.id, longitude, latitude)
+    expect(moved).toEqual(miniMoved)
+    expect(moved.points[0]).toMatchObject({ longitude, latitude, manuallyAdjusted: true })
+    expect(moved.manualAdjustmentCount).toBe(1)
+    expect(moved).not.toBe(originalPlan)
+    expect(moved.points).not.toBe(originalPlan.points)
+    expect(buildOviKml(reservoir, moved)).toContain(`${longitude.toFixed(8)},${latitude.toFixed(8)},0`)
+    expect(buildOviKml(reservoir, moved)).toContain('1个点位已手动调整')
+    expect(() => moveSamplingPoint(reservoir, originalPlan, original.id, 100, 20))
+      .toThrow('点位必须保留在河南库区水面范围内')
   })
 })

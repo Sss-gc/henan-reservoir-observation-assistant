@@ -156,7 +156,10 @@ await check('6个页面配置、首页与点位全屏模式直接渲染原生地
       assert.match(template, /class="current-basin-dot"[^>]+selected\.basinColor/)
       assert.match(template, /basinLegendCollapsed[^>]+catchtap="toggleBasinLegend"/)
       assert.match(template, /class="sampling-preview-button"[^>]+catchtap="openSamplingPreview"[^>]*>点位设计<\/view>/)
-      assert.match(template, /<picker[^>]+range="{{reservoirs}}"[^>]+range-key="pickerLabel"[^>]+bindchange="selectPointReservoir"/)
+      assert.doesNotMatch(template, /<picker[^>]+bindchange="selectPointReservoir"/)
+      assert.match(template, /class="point-switch-label[^>]+bindtap="togglePointReservoirPicker"/)
+      assert.match(template, /class="point-reservoir-panel"/)
+      assert.match(template, /class="point-reservoir-basin"/)
       assert.match(template, /class="picker-basin-section"/)
       assert.doesNotMatch(template, /map-expand-button/)
       assert.ok(Array.from(doc.getElementsByTagName('map')).every((map) => map.getElementsByTagName('button').length === 0), '所有交互按钮必须放在原生地图外，避免真机吞掉点击')
@@ -449,15 +452,45 @@ await check('采样点按参考方案或水面边界设计，并导出奥维可�
   assert.equal(home.data.pointMap.polyline[0].points.length, home.data.pointPlan.count)
   assert.deepEqual(home.data.pointSchemes.map((scheme) => scheme.id), ['sync', 'shore'])
   assert.equal(fakeTabBar.data.hidden, true); assert.deepEqual(calls.map.at(-1).points, home._pointMapPoints)
+  home.togglePointReservoirPicker(); assert.equal(home.data.pointPickerOpen, true)
+  assert.deepEqual(home.data.pointReservoirOptions.filter((item) => item.showBasinHeader)
+    .map((item) => [item.basin, item.basinResultCount]),
+  [['黄河流域', 5], ['淮河流域', 15], ['长江流域', 3], ['海河流域', 3]])
   const luhunIndex = home.data.reservoirs.findIndex((item) => item.id === 'HN_RSV_002')
   const guxianIndex = home.data.reservoirs.findIndex((item) => item.id === 'HN_RSV_010')
-  home.selectPointReservoir({ detail: { value: String(luhunIndex) } })
+  home.selectPointReservoir(event({ id: 'HN_RSV_002' }))
   assert.equal(home.data.selected.id, 'HN_RSV_002'); assert.equal(home.data.pointReservoirIndex, luhunIndex)
+  assert.equal(home.data.pointPickerOpen, false)
   assert.equal(home.data.pointPlan.count, 14); assert.equal(home.data.pointPlan.schemeId, 'sync')
   assert.equal(home.data.pointMap.markers.length, 14)
   assert.deepEqual(calls.map.at(-1).points, home._pointMapPoints)
-  home.selectPointReservoir({ detail: { value: String(guxianIndex) } })
+  home.togglePointReservoirPicker(); home.selectPointReservoir(event({ id: 'HN_RSV_010' }))
   assert.equal(home.data.selected.id, 'HN_RSV_010'); assert.equal(home.data.pointPlan.count, 12)
+  const originalPoint = home.data.pointPlan.points[0]
+  home.selectPointForAdjustment({ detail: { markerId: originalPoint.id } })
+  assert.equal(home.data.pointAdjustingId, originalPoint.id)
+  assert.equal(home.data.pointMap.markers[0].width, 40)
+  const latitudeDelta = 20 / 110574
+  const longitudeDelta = 20 / (111320 * Math.cos(originalPoint.latitude * Math.PI / 180))
+  const nudgeTargets = [
+    { direction: 'up', longitude: originalPoint.longitude, latitude: originalPoint.latitude + latitudeDelta },
+    { direction: 'down', longitude: originalPoint.longitude, latitude: originalPoint.latitude - latitudeDelta },
+    { direction: 'left', longitude: originalPoint.longitude - longitudeDelta, latitude: originalPoint.latitude },
+    { direction: 'right', longitude: originalPoint.longitude + longitudeDelta, latitude: originalPoint.latitude },
+  ]
+  const validNudge = nudgeTargets.find((target) => {
+    try { sampling.moveSamplingPoint(data.getReservoir(home.data.selected.id), home.data.pointPlan,
+      originalPoint.id, target.longitude, target.latitude); return true } catch { return false }
+  })
+  assert.ok(validNudge, '至少一个方向应允许点位微调')
+  home.nudgeSelectedPoint(event({ direction: validNudge.direction }))
+  assert.equal(home.data.pointAdjustingId, originalPoint.id); assert.equal(home.data.pointPlan.manualAdjustmentCount, 1)
+  assert.ok(Math.abs(home.data.pointPlan.points[0].longitude - validNudge.longitude) < 1e-7)
+  assert.ok(Math.abs(home.data.pointPlan.points[0].latitude - validNudge.latitude) < 1e-7)
+  assert.match(home.data.pointAdjustmentMessage, /可继续微调/)
+  assert.match(sampling.buildOviKml(reservoir, home.data.pointPlan), /1个点位已手动调整/)
+  home.cancelPointAdjustment(); assert.equal(home.data.pointAdjustingId, 0)
+  home.restorePointPlan(); assert.equal(home.data.pointPlan.manualAdjustmentCount, 0)
   home.selectPointScheme(event({ id: 'sync' }))
   const syncCount = sampling.standardPointCount(reservoir)
   assert.equal(home.data.pointCount, syncCount); assert.equal(home.data.pointSchemeAdjustable, true)
@@ -483,8 +516,17 @@ await check('采样点按参考方案或水面边界设计，并导出奥维可�
   const pointMapNode = Array.from(fullDocument.getElementsByTagName('map')).find((map) => map.getAttribute('id') === 'sampling-full-map')
   assert.ok(pointMapNode); assert.equal(pointMapNode.getElementsByTagName('button').length, 0, '全屏交互按钮必须位于原生地图之外')
   assert.equal(pointMapNode.getAttribute('show-compass'), '{{false}}')
+  assert.equal(pointMapNode.getAttribute('bindmarkertap'), 'selectPointForAdjustment')
+  assert.equal(pointMapNode.getAttribute('bindlabeltap'), 'selectPointForAdjustment')
+  assert.equal(pointMapNode.hasAttribute('bindtap'), false)
+  assert.match(fullTemplate, /class="point-nudge-controls"/)
+  assert.equal((fullTemplate.match(/bindtap="nudgeSelectedPoint"/g) || []).length, 4)
   const dashboardStyles = fs.readFileSync(path.join(mini, 'pages/dashboard/dashboard.wxss'), 'utf8')
   assert.match(dashboardStyles, /\.reservoir-location[^}]+white-space:\s*nowrap/)
+  assert.match(dashboardStyles, /\.point-back-button[^}]+flex:\s*0 0 74rpx[^}]+min-width:\s*74rpx[^}]+max-width:\s*74rpx/, '返回按钮必须保持紧凑且不能被页头拉伸')
+  assert.match(dashboardStyles, /\.point-reservoir-copy[^}]+text-align:\s*center/, '水库信息必须在页头中间区域居中显示')
+  assert.match(dashboardStyles, /\.point-switch-label[^}]+min-width:\s*108rpx[^}]+height:\s*58rpx/, '切换按钮必须保留清晰的点击尺寸')
+  assert.doesNotMatch(fullTemplate, /点击切换水库/)
   home.closeSamplingPreview(); assert.equal(home.data.pointPreviewOpen, false); assert.equal(fakeTabBar.data.hidden, false)
   assert.equal(home.onBackPress(), false)
   const dashboardTemplate = fs.readFileSync(path.join(mini, 'pages/dashboard/dashboard.wxml'), 'utf8')

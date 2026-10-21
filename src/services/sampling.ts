@@ -32,6 +32,7 @@ export interface SamplingPoint {
   longitude: number
   latitude: number
   shoreDistanceKm: number
+  manuallyAdjusted?: boolean
 }
 
 export interface SamplingPlan {
@@ -62,6 +63,7 @@ export interface SamplingPlan {
   accessVerificationRequired: boolean
   accessNote: string
   fixedCount: boolean
+  manualAdjustmentCount: number
 }
 
 interface ProjectedPoint {
@@ -355,6 +357,17 @@ function distanceKm(start: Pick<SamplingPoint, 'longitude' | 'latitude'>, end: P
   return 2 * radius * Math.asin(Math.sqrt(value))
 }
 
+function samplingMetrics(points: SamplingPoint[]) {
+  const distances = points.slice(1).map((point, index) => distanceKm(points[index], point))
+  const routeDistanceKm = distances.reduce((sum, distance) => sum + distance, 0)
+  return {
+    routeDistanceKm: Number(routeDistanceKm.toFixed(1)),
+    meanSpacingKm: Number((routeDistanceKm / Math.max(1, distances.length)).toFixed(1)),
+    minimumSpacingKm: Number((distances.length ? Math.min(...distances) : 0).toFixed(1)),
+    minimumShoreDistanceM: Math.round(Math.min(...points.map((point) => point.shoreDistanceKm)) * 1000),
+  }
+}
+
 function scopedReferencePoints(reservoir: SamplingReservoir, references: SamplingReferenceLayouts, geometry = createGeometry(reservoir)) {
   const reference = references[reservoir.id]
   if (!reference) return []
@@ -423,9 +436,7 @@ export function buildSamplingPlan(
     latitude: Number(point.latitude.toFixed(8)),
     shoreDistanceKm: point.shoreDistance,
   }))
-  const distances = points.slice(1).map((point, index) => distanceKm(points[index], point))
-  const routeDistanceKm = distances.reduce((sum, distance) => sum + distance, 0)
-  const minimumShoreDistanceM = Math.round(Math.min(...points.map((point) => point.shoreDistanceKm)) * 1000)
+  const metrics = samplingMetrics(points)
   const accessVerificationRequired = scheme.candidateMode === 'shore-access'
   return {
     reservoirId: reservoir.id,
@@ -438,12 +449,9 @@ export function buildSamplingPlan(
     count: points.length,
     prefix: '',
     points,
-    routeDistanceKm: Number(routeDistanceKm.toFixed(1)),
-    meanSpacingKm: Number((routeDistanceKm / Math.max(1, distances.length)).toFixed(1)),
-    minimumSpacingKm: Number((distances.length ? Math.min(...distances) : 0).toFixed(1)),
+    ...metrics,
     shorelineBufferM: Math.round((candidates?.appliedBuffer ?? preferredShoreBuffer(reservoir)) * 1000),
     targetShorelineBufferM: Math.round((candidates?.preferredBuffer ?? preferredShoreBuffer(reservoir)) * 1000),
-    minimumShoreDistanceM,
     bufferException: false,
     source: useReference ? 'reference' : accessVerificationRequired ? 'shore-candidates' : 'generated',
     referenceBasis: useReference ? reference.basis : '',
@@ -457,6 +465,41 @@ export function buildSamplingPlan(
       ? (reservoir.shore_candidate_note || '道路、坡岸和管制条件须现场复核')
       : '',
     fixedCount: false,
+    manualAdjustmentCount: 0,
+  }
+}
+
+export function moveSamplingPoint(
+  reservoir: SamplingReservoir,
+  plan: SamplingPlan,
+  pointId: number,
+  longitude: number,
+  latitude: number,
+): SamplingPlan {
+  if (![longitude, latitude].every(Number.isFinite)) throw new Error('目标坐标无效，请重新选择位置')
+  const geometry = createGeometry(reservoir)
+  const projected = geometry.project([longitude, latitude])
+  if (!pointInGeometry(projected, geometry)) throw new Error('点位必须保留在河南库区水面范围内')
+  let moved = false
+  const points = plan.points.map((point) => {
+    if (point.id !== pointId) return point
+    moved = true
+    return {
+      ...point,
+      longitude: Number(longitude.toFixed(8)),
+      latitude: Number(latitude.toFixed(8)),
+      shoreDistanceKm: shoreDistanceInGeometry(projected, geometry),
+      manuallyAdjusted: true,
+    }
+  })
+  if (!moved) throw new Error('没有找到需要调整的点位')
+  const metrics = samplingMetrics(points)
+  return {
+    ...plan,
+    ...metrics,
+    points,
+    bufferException: metrics.minimumShoreDistanceM < plan.shorelineBufferM,
+    manualAdjustmentCount: points.filter((point) => point.manuallyAdjusted).length,
   }
 }
 
@@ -468,9 +511,10 @@ function escapeXml(value: unknown) {
 export function buildOviKml(reservoir: SamplingReservoir, plan: SamplingPlan) {
   const documentName = `${reservoir.name_cn}-${plan.schemeLabel}采样点`
   const accessText = plan.accessVerificationRequired ? ' · 岸边可达候选，须现场复核道路、坡岸与管制条件' : ''
+  const manualText = plan.manualAdjustmentCount ? ` · ${plan.manualAdjustmentCount}个点位已手动调整` : ''
   const placemarks = plan.points.map((point) => `      <Placemark>
         <name>${escapeXml(point.name)}</name>
-        <description>${escapeXml(`${reservoir.name_cn} · 河南库区 · ${plan.schemeLabel} · ${reservoir.basin} · 采样点 ${point.name}${accessText}`)}</description>
+        <description>${escapeXml(`${reservoir.name_cn} · 河南库区 · ${plan.schemeLabel} · ${reservoir.basin} · 采样点 ${point.name}${point.manuallyAdjusted ? ' · 手动调整' : ''}${accessText}`)}</description>
         <styleUrl>#m_ylw-pushpin</styleUrl>
         <OvAttr><OvIcon>4</OvIcon><OvIconNum>0</OvIconNum></OvAttr>
         <OvCoordType>CGCS2000</OvCoordType>
@@ -480,7 +524,7 @@ export function buildOviKml(reservoir: SamplingReservoir, plan: SamplingPlan) {
 <kml xmlns="http://www.opengis.net/kml/2.2" xmlns:gx="http://www.google.com/kml/ext/2.2">
   <Document>
     <name>${escapeXml(documentName)}</name>
-    <description>${escapeXml(`${plan.samplingScope} · ${plan.schemeDescription}${accessText}`)}</description>
+    <description>${escapeXml(`${plan.samplingScope} · ${plan.schemeDescription}${manualText}${accessText}`)}</description>
     <Style id="s_ylw-pushpin"><IconStyle><scale>1.1</scale><Icon><href>http://maps.google.com/mapfiles/kml/pushpin/ylw-pushpin.png</href></Icon></IconStyle></Style>
     <StyleMap id="m_ylw-pushpin"><Pair><key>normal</key><styleUrl>#s_ylw-pushpin</styleUrl></Pair><Pair><key>highlight</key><styleUrl>#s_ylw-pushpin</styleUrl></Pair></StyleMap>
     <Folder>

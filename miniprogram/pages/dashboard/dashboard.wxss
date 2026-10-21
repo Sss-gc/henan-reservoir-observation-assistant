@@ -95,13 +95,26 @@ THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH RE
 .point-fullscreen { position: fixed; z-index: 1000; inset: 0; display: flex; flex-direction: column; width: 100%; height: 100vh; overflow: hidden; background: #06141d; }
 .point-fullscreen-map { display: block; flex: 1; width: 100%; min-height: 0; background: #dce7e9; }
 .point-fullscreen-header { display: flex; flex: 0 0 auto; align-items: center; padding: calc(env(safe-area-inset-top) + 12rpx) 22rpx 12rpx; border-bottom: 1rpx solid #294653; background: #06141d; color: #eceff4; }
-.point-back-button { display: flex; align-items: center; justify-content: center; width: 62rpx; height: 58rpx; margin-right: 14rpx; border: 1rpx solid #365462; border-radius: 16rpx; background: #17343d; color: #88c0d0; font-size: 46rpx; line-height: 54rpx; text-align: center; }
-.point-reservoir-picker { flex: 1; min-width: 0; }
-.point-reservoir-trigger { display: flex; align-items: center; width: 100%; min-width: 0; height: 58rpx; }
-.point-reservoir-copy { flex: 1; min-width: 0; }
+.point-back-button { display: flex; flex: 0 0 74rpx; align-items: center; justify-content: center; width: 74rpx; min-width: 74rpx; max-width: 74rpx; height: 58rpx; margin-right: 18rpx; border: 1rpx solid #365462; border-radius: 14rpx; background: #17343d; color: #88c0d0; font-size: 40rpx; line-height: 1; text-align: center; }
+.point-reservoir-trigger { display: flex; flex: 1; align-items: center; min-width: 0; height: 58rpx; }
+.point-reservoir-copy { flex: 1; min-width: 0; text-align: center; }
 .point-header-title { font-size: 28rpx; font-weight: 650; line-height: 1.3; }
 .point-header-note { margin-top: 1rpx; overflow: hidden; color: #a7bac6; font-size: 19rpx; line-height: 1.3; text-overflow: ellipsis; white-space: nowrap; }
-.point-switch-label { flex: 0 0 auto; margin-left: 12rpx; padding: 10rpx 14rpx; border: 1rpx solid #365462; border-radius: 12rpx; background: #091d27; color: #88c0d0; font-size: 21rpx; }
+.point-switch-label { display: flex; flex: 0 0 auto; align-items: center; justify-content: center; min-width: 108rpx; height: 58rpx; margin-left: 14rpx; padding: 0 18rpx; border: 1rpx solid #365462; border-radius: 14rpx; background: #091d27; color: #88c0d0; font-size: 23rpx; font-weight: 600; line-height: 1; }
+.point-switch-label.active { border-color: #88c0d0; background: #173b46; color: #dff7f8; }
+.point-reservoir-panel { flex: 0 0 auto; padding: 14rpx 22rpx 18rpx; border-bottom: 1rpx solid #365462; background: #0a1d29; }
+.point-reservoir-panel-title { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10rpx; color: #dce9ed; font-size: 23rpx; font-weight: 650; }
+.point-reservoir-panel-title > text:last-child { color: #7899a8; font-size: 18rpx; font-weight: 400; }
+.point-reservoir-list { width: 100%; height: 410rpx; overflow: hidden; border: 1rpx solid #365462; border-radius: 16rpx; background: #091d27; }
+.point-reservoir-basin { display: flex; align-items: center; height: 52rpx; padding: 0 20rpx; border-top: 1rpx solid #365462; border-bottom: 1rpx solid #294653; background: #17343d; color: #d8e4e8; font-size: 21rpx; font-weight: 650; }
+.point-reservoir-basin:first-child { border-top: 0; }
+.point-reservoir-basin-dot { flex: 0 0 auto; width: 12rpx; height: 12rpx; margin-right: 10rpx; border-radius: 50%; }
+.point-reservoir-basin-count { margin-left: auto; color: #91a7b5; font-size: 18rpx; font-weight: 400; }
+.point-reservoir-option { display: flex; align-items: center; min-height: 72rpx; padding: 10rpx 20rpx; border-bottom: 1rpx solid #294653; background: #091d27; color: #d8dee9; }
+.point-reservoir-option.active { background: #193b45; box-shadow: inset 4rpx 0 0 #88c0d0; }
+.point-reservoir-option-copy { flex: 1; min-width: 0; font-size: 24rpx; font-weight: 600; line-height: 1.35; }
+.point-reservoir-option-copy > text { display: block; margin-top: 2rpx; overflow: hidden; color: #829eab; font-size: 18rpx; font-weight: 400; text-overflow: ellipsis; white-space: nowrap; }
+.point-reservoir-option-state { flex: 0 0 auto; margin-left: 16rpx; color: #88c0d0; font-size: 20rpx; }
 .point-scheme-panel { flex: 0 0 auto; padding: 12rpx 22rpx 10rpx; border-bottom: 1rpx solid #294653; background: #0a1b24; }
 .point-scheme-strip { width: 100%; white-space: nowrap; }
 .point-scheme-option { display: inline-flex; box-sizing: border-box; vertical-align: top; flex-direction: column; justify-content: center; width: 210rpx; min-height: 74rpx; margin-right: 12rpx; padding: 9rpx 14rpx; border: 1rpx solid #365462; border-radius: 14rpx; background: #102631; color: #b7c6cf; }
@@ -114,6 +127,16 @@ THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH RE
 .point-scheme-option.active .point-scheme-count { color: #c8d8df; }
 .point-scheme-summary { margin-top: 8rpx; overflow: hidden; color: #91a7b5; font-size: 18rpx; line-height: 1.35; text-overflow: ellipsis; white-space: nowrap; }
 .point-buffer-warning { margin-top: 7rpx; padding: 7rpx 10rpx; border-radius: 9rpx; background: rgba(208, 135, 112, 0.14); color: #e1aa96; font-size: 18rpx; line-height: 1.35; }
+.point-adjustment-panel { flex: 0 0 auto; border-bottom: 1rpx solid #294653; background: #0d2a32; color: #dff5f2; }
+.point-adjustment-panel.error { background: #332328; color: #f0c0ad; }
+.point-adjustment-bar { display: flex; align-items: center; min-height: 66rpx; padding: 8rpx 22rpx; }
+.point-adjustment-copy { flex: 1; min-width: 0; font-size: 21rpx; font-weight: 650; line-height: 1.35; }
+.point-adjustment-copy > text { display: block; margin-top: 1rpx; overflow: hidden; color: #8fb4bf; font-size: 18rpx; font-weight: 400; text-overflow: ellipsis; white-space: nowrap; }
+.point-adjustment-panel.error .point-adjustment-copy > text { color: #e0a995; }
+.point-adjustment-cancel { flex: 0 0 auto; margin-left: 14rpx; padding: 7rpx 16rpx; border: 1rpx solid #52727c; border-radius: 11rpx; color: #b9d8dd; font-size: 20rpx; }
+.point-nudge-controls { display: grid; grid-template-columns: repeat(3, 78rpx); grid-template-rows: repeat(3, 66rpx); justify-content: center; gap: 5rpx; padding: 2rpx 22rpx 12rpx; }
+.point-nudge-button { display: flex; align-items: center; justify-content: center; border: 1rpx solid #5f8590; border-radius: 14rpx; background: #173f49; color: #e4f5f3; font-size: 34rpx; font-weight: 700; line-height: 1; box-shadow: inset 0 0 0 1rpx rgba(136, 192, 208, 0.12); }
+.point-nudge-center { display: flex; align-items: center; justify-content: center; color: #8fb4bf; font-size: 17rpx; font-weight: 650; }
 .point-fullscreen-footer { flex: 0 0 auto; padding: 12rpx 22rpx calc(env(safe-area-inset-bottom) + 14rpx); border-top: 1rpx solid #294653; background: #06141d; }
 .point-preview-note { margin-bottom: 10rpx; color: #91a7b5; font-size: 19rpx; line-height: 1.4; text-align: center; }
 .point-footer-actions { display: flex; align-items: center; gap: 14rpx; }
