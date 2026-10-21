@@ -41,7 +41,7 @@ describe('mini program private website access', () => {
     const invalid = await onRequestPost({ request: new Request('https://site.test/api/session', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{' }), env } as Parameters<typeof onRequestPost>[0])
     expect(invalid.status).toBe(400)
   })
-  it('protects weather, orbit and map routes; only POST session is public', async () => {
+  it('protects weather, orbit and map routes; only login, favicon and POST session are public', async () => {
     const env = environment(), next = vi.fn(async () => new Response('protected'))
     for (const path of ['/api/weather?all=1', '/data/orbit-passes.json', '/api/map-tile?layer=vec&z=8&x=1&y=1', '/api/session']) {
       const response = await onRequest({ request: new Request(`https://site.test${path}`), env, next } as unknown as Parameters<typeof onRequest>[0])
@@ -50,6 +50,9 @@ describe('mini program private website access', () => {
     expect(next).not.toHaveBeenCalled()
     await onRequest({ request: new Request('https://site.test/api/session', { method: 'POST' }), env, next } as unknown as Parameters<typeof onRequest>[0])
     expect(next).toHaveBeenCalledOnce()
+    const favicon = await onRequest({ request: new Request('https://site.test/favicon.png'), env, next } as unknown as Parameters<typeof onRequest>[0])
+    expect(await favicon.text()).toBe('protected')
+    expect(next).toHaveBeenCalledTimes(2)
     const token = await createSessionToken('test@example.com', env.AUTH_SESSION_SECRET)
     const response = await onRequest({ request: new Request('https://site.test/data/orbit-passes.json', { headers: { Authorization: `Bearer ${token}` } }), env, next } as unknown as Parameters<typeof onRequest>[0])
     expect(await response.text()).toBe('protected'); expect(response.headers.get('Cache-Control')).toContain('private')
