@@ -47,21 +47,6 @@ const sourceLabel = computed(() => plan.value?.source === 'reference'
   : plan.value?.source === 'shore-candidates'
     ? `岸边候选点位${plan.value?.manualAdjustmentCount ? ` · 手动编辑${plan.value.manualAdjustmentCount}点` : ''}`
     : `自动设计点位${plan.value?.manualAdjustmentCount ? ` · 手动编辑${plan.value.manualAdjustmentCount}点` : ''}`)
-const measurementText = computed(() => {
-  if (!measuringPoints.value) return '可测两个点位之间，或点位到自选岸边位置的直线距离'
-  const points = measurementPointIds.value
-    .map((id) => plan.value?.points.find((point) => point.id === id))
-    .filter((point) => point !== undefined)
-  if (!points.length) return '测距已开启：请选择第一个编号点'
-  if (measurementTarget.value) {
-    const distance = samplingPointDistanceM(points[0], measurementTarget.value)
-    return `${points[0].name} 到所选岸边位置：${distance.toLocaleString('zh-CN')} m`
-  }
-  if (points.length === 1) return `已选 ${points[0].name}：再点一个编号点，或点击岸边位置`
-  const distance = samplingPointDistanceM(points[0], points[1])
-  return `${points[0].name} ↔ ${points[1].name}：${distance.toLocaleString('zh-CN')} m`
-})
-
 function close() { emit('close') }
 
 function changeReservoir(event: Event) {
@@ -330,8 +315,14 @@ onBeforeUnmount(() => {
         <button class="back-button" aria-label="关闭点位设计，返回观测计划" @click="close"><ArrowLeft :size="19" /><span>返回</span></button>
         <div class="designer-title"><p class="eyebrow">WATER SAMPLING DESIGN</p><h2 id="sampling-title">采样点位设计</h2></div>
         <div class="designer-toolbar" aria-label="点位设计工具栏">
-          <button :class="['tool-button', { active: measuringPoints }]" :aria-pressed="measuringPoints" @click="togglePointMeasurement"><Ruler :size="16" />测距</button>
-          <span :class="['tool-status', { active: measuringPoints }]" aria-live="polite">{{ measurementText }}</span>
+          <button
+            :class="['tool-button', { active: measuringPoints }]"
+            :aria-label="measuringPoints ? '关闭测距工具' : '开启测距工具'"
+            aria-describedby="measurement-tool-tip"
+            :aria-pressed="measuringPoints"
+            @click="togglePointMeasurement"
+          ><Ruler :size="16" />测距</button>
+          <span id="measurement-tool-tip" class="tool-tooltip" role="tooltip">开启后先点一个编号点，再点另一个编号点或地图位置，即可显示直线距离。</span>
         </div>
         <label class="reservoir-selector"><span>当前水库</span><select :value="selected.properties.id" aria-label="选择点位设计水库" @change="changeReservoir">
           <optgroup v-for="group in reservoirGroups" :key="group.basin" :label="group.basin">
@@ -410,8 +401,9 @@ onBeforeUnmount(() => {
 .designer-header{display:flex;align-items:center;gap:20px;flex:none;padding:16px 24px;border-bottom:1px solid var(--line);background:#0a1d29}
 .designer-title{flex:0 0 auto}.designer-title h2{font-size:20px;margin:3px 0 0}
 .back-button,.fit-button,.restore-button{display:inline-flex;align-items:center;justify-content:center;gap:7px;border:1px solid #365462;background:#102b38;border-radius:9px;padding:9px 12px;cursor:pointer;color:#c6e0e8;font-size:12px}
-.designer-toolbar{display:flex;align-items:center;flex:1;min-width:260px;max-width:760px;height:42px;overflow:hidden;border:1px solid #365462;border-radius:10px;background:#091f2c}
-.tool-button{display:inline-flex;align-items:center;align-self:stretch;gap:7px;flex:0 0 auto;padding:0 14px;border:0;border-right:1px solid #365462;background:#143441;color:#c7e2e8;cursor:pointer;font-size:12px;font-weight:600}.tool-button.active{background:#1f6f63;color:#effffc}.tool-status{min-width:0;overflow:hidden;padding:0 13px;color:#8fb4bf;font-size:11px;text-overflow:ellipsis;white-space:nowrap}.tool-status.active{color:#8fe4d4}
+.designer-toolbar{position:relative;display:flex;align-items:center;gap:8px;flex:1;min-width:120px;height:42px}
+.tool-button{display:inline-flex;align-items:center;justify-content:center;gap:7px;height:42px;flex:0 0 auto;padding:0 14px;border:1px solid #365462;border-radius:10px;background:#143441;color:#c7e2e8;cursor:pointer;font-size:12px;font-weight:600}.tool-button:hover{border-color:#4f7180;background:#193f4e}.tool-button.active{border-color:#4fc7b5;background:#1f6f63;color:#effffc}
+.tool-tooltip{position:absolute;z-index:1200;top:calc(100% + 8px);left:0;width:max-content;max-width:min(330px,calc(100vw - 24px));padding:9px 11px;border:1px solid #426573;border-radius:8px;background:#102b38;color:#d7e9ee;box-shadow:0 8px 24px #00121dbf;font-size:11px;line-height:1.55;opacity:0;pointer-events:none;transform:translateY(-3px);transition:opacity .15s ease,transform .15s ease}.tool-button:hover + .tool-tooltip,.tool-button:focus-visible + .tool-tooltip{opacity:1;transform:translateY(0)}
 .reservoir-selector{display:flex;align-items:center;gap:10px;color:#8baab9;font-size:12px}
 .reservoir-selector select{max-width:240px;min-width:170px;padding:10px 12px;border:1px solid #365462;border-radius:9px;background:#102b38;color:#e5f2f7;font:inherit}
 .designer-body{display:grid;grid-template-columns:minmax(0,1fr) 360px;flex:1;min-height:0}
