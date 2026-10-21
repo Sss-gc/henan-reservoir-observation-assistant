@@ -4,8 +4,8 @@ import * as L from 'leaflet'
 import { ArrowLeft, CircleAlert, Download, LocateFixed, Minus, Plus, RefreshCw } from 'lucide-vue-next'
 import type { ReservoirFeature, SamplingReferenceLayouts, SamplingReservoir, SamplingScopeCollection } from '../types'
 import {
-  buildOviKml, buildSamplingPlan, createSamplingReservoir, getSamplingSchemes,
-  MAX_POINT_COUNT, MIN_POINT_COUNT, moveSamplingPoint, reservoirBasin,
+  addSamplingPoint, buildOviKml, buildSamplingPlan, createSamplingReservoir, getSamplingSchemes,
+  MAX_POINT_COUNT, MIN_POINT_COUNT, moveSamplingPoint, removeLastSamplingPoint, reservoirBasin,
 } from '../services/sampling'
 import type { SamplingPlan, SamplingScheme } from '../services/sampling'
 
@@ -22,9 +22,9 @@ const error = ref('')
 const exportMessage = ref('')
 const adjustmentMessage = ref('拖动任一编号点可手动调整位置；点位必须保留在河南库区水面内。')
 const adjustmentError = ref(false)
+const addingPoint = ref(false)
 const basemapUnavailable = ref(false)
 const schemeId = ref<SamplingScheme['id']>('sync')
-const countInput = ref(0)
 const requestController = new AbortController()
 let map: L.Map | null = null
 let designLayer: L.FeatureGroup | null = null
@@ -39,10 +39,10 @@ const reservoirGroups = computed(() => basinOrder.map((basin) => ({
     (feature.properties.basin || reservoirBasin(feature.properties.id)) === basin),
 })))
 const sourceLabel = computed(() => plan.value?.source === 'reference'
-  ? `参考实测点位${plan.value?.manualAdjustmentCount ? ` · 手调${plan.value.manualAdjustmentCount}点` : ''}`
+  ? `参考实测点位${plan.value?.manualAdjustmentCount ? ` · 手动编辑${plan.value.manualAdjustmentCount}点` : ''}`
   : plan.value?.source === 'shore-candidates'
-    ? `岸边候选点位${plan.value?.manualAdjustmentCount ? ` · 手调${plan.value.manualAdjustmentCount}点` : ''}`
-    : `自动设计点位${plan.value?.manualAdjustmentCount ? ` · 手调${plan.value.manualAdjustmentCount}点` : ''}`)
+    ? `岸边候选点位${plan.value?.manualAdjustmentCount ? ` · 手动编辑${plan.value.manualAdjustmentCount}点` : ''}`
+    : `自动设计点位${plan.value?.manualAdjustmentCount ? ` · 手动编辑${plan.value.manualAdjustmentCount}点` : ''}`)
 
 function close() { emit('close') }
 
@@ -76,6 +76,7 @@ function rebuild(count?: number, nextScheme = schemeId.value) {
   exportMessage.value = ''
   adjustmentMessage.value = '拖动任一编号点可手动调整位置；点位必须保留在河南库区水面内。'
   adjustmentError.value = false
+  addingPoint.value = false
   try {
     const scope = scopes.value.features.find((feature) => feature.properties.id === props.selected.properties.id)
     if (!scope) throw new Error('该水库暂缺河南库区采样边界')
@@ -84,7 +85,6 @@ function rebuild(count?: number, nextScheme = schemeId.value) {
     reservoir.value = nextReservoir
     plan.value = nextPlan
     schemeId.value = nextScheme
-    countInput.value = nextPlan.count
     drawPlan()
   } catch (cause) {
     plan.value = null
@@ -93,9 +93,42 @@ function rebuild(count?: number, nextScheme = schemeId.value) {
   }
 }
 
-function applyCount() {
-  const count = Math.max(MIN_POINT_COUNT, Math.min(MAX_POINT_COUNT, Math.round(Number(countInput.value) || defaultCount.value)))
-  rebuild(count)
+function toggleAddingPoint() {
+  if (!plan.value || plan.value.count >= MAX_POINT_COUNT) return
+  addingPoint.value = !addingPoint.value
+  adjustmentError.value = false
+  adjustmentMessage.value = addingPoint.value
+    ? `添加模式：请在水面上点击放置 ${String(plan.value.count + 1).padStart(2, '0')} 号点。`
+    : '已取消添加点位；现有布局保持不变。'
+}
+
+function addPointAtMapLocation(event: L.LeafletMouseEvent) {
+  if (!addingPoint.value || !reservoir.value || !plan.value) return
+  try {
+    plan.value = addSamplingPoint(reservoir.value, plan.value, event.latlng.lng, event.latlng.lat)
+    addingPoint.value = false
+    adjustmentError.value = false
+    adjustmentMessage.value = `${plan.value.points.at(-1)?.name} 号点已添加；原有点位均保持不变，可继续拖动微调。`
+    drawPlan(false)
+  } catch (cause) {
+    adjustmentError.value = true
+    adjustmentMessage.value = cause instanceof Error ? cause.message : '新增点位失败，请在水面内重试'
+  }
+}
+
+function removeLastPoint() {
+  if (!plan.value) return
+  const removedName = plan.value.points.at(-1)?.name
+  try {
+    plan.value = removeLastSamplingPoint(plan.value)
+    addingPoint.value = false
+    adjustmentError.value = false
+    adjustmentMessage.value = `${removedName} 号点已删除；其余点位位置保持不变。`
+    drawPlan(false)
+  } catch (cause) {
+    adjustmentError.value = true
+    adjustmentMessage.value = cause instanceof Error ? cause.message : '删除点位失败'
+  }
 }
 
 function initializeMap() {
@@ -104,6 +137,7 @@ function initializeMap() {
   map.attributionControl.setPrefix(false)
   L.control.scale({ imperial: false, position: 'bottomleft' }).addTo(map)
   designLayer = L.featureGroup().addTo(map)
+  map.on('click', addPointAtMapLocation)
   const key = import.meta.env.VITE_TIANDITU_KEY?.trim()
   if (key) {
     let loaded = false
@@ -136,6 +170,7 @@ function drawPlan(shouldFit = true) {
     popup.textContent = `${point.name} · ${point.longitude.toFixed(8)}, ${point.latitude.toFixed(8)} · WGS84`
     const marker = L.marker([point.latitude, point.longitude], {
       draggable: true,
+      bubblingMouseEvents: false,
       icon: L.divIcon({
         className: `sampling-point-icon${point.manuallyAdjusted ? ' manually-adjusted' : ''}`,
         html: `<span>${point.name}</span>`,
@@ -145,6 +180,7 @@ function drawPlan(shouldFit = true) {
       alt: `采样点 ${point.name}`,
     }).bindPopup(popup).addTo(designLayer)
     marker.on('dragstart', () => {
+      addingPoint.value = false
       adjustmentError.value = false
       adjustmentMessage.value = `正在调整 ${point.name}，松开后保存新位置。`
     })
@@ -225,7 +261,7 @@ onBeforeUnmount(() => {
       </header>
       <div class="designer-body">
         <section class="design-map" aria-label="采样点位地图">
-          <div class="design-map-viewport"><div ref="mapElement" class="design-map-canvas"></div></div>
+          <div :class="['design-map-viewport', { 'adding-point': addingPoint }]"><div ref="mapElement" class="design-map-canvas"></div></div>
           <div class="design-map-toolbar">
             <div class="map-caption"><strong>{{ selected.properties.name_cn }}</strong><span v-if="plan">河南库区 {{ plan.samplingAreaKm2 }} km² · {{ plan.count }} 个点</span></div>
             <div class="design-map-actions"><button class="fit-button" aria-label="放大点位地图" @click="changeMapZoom(1)"><Plus :size="16" /></button><button class="fit-button" aria-label="缩小点位地图" @click="changeMapZoom(-1)"><Minus :size="16" /></button><button class="fit-button" @click="fitMap"><LocateFixed :size="15" />适配点位</button></div>
@@ -244,19 +280,20 @@ onBeforeUnmount(() => {
                 </button>
               </div>
               <p class="scheme-description">{{ plan.schemeDescription }}</p>
-              <p v-if="plan.source === 'reference'" class="source-note">保留参考坐标与顺序，统一从 01 编号。调整点数后重新自动布点。</p>
+              <p v-if="plan.source === 'reference'" class="source-note">保留参考坐标与顺序，统一从 01 编号；使用“＋”可在现有布局后追加点位。</p>
               <p v-else-if="plan.source === 'generated'" class="source-note">自动点位按水面边界筛选，自适应离岸 {{ plan.shorelineBufferM }} m。</p>
-              <p v-if="plan.manualAdjustmentCount" class="manual-note">已有 {{ plan.manualAdjustmentCount }} 个点位手动调整；恢复默认可撤销全部调整。</p>
+              <p v-if="plan.manualAdjustmentCount" class="manual-note">已有 {{ plan.manualAdjustmentCount }} 个点位手动编辑；恢复默认可撤销全部编辑。</p>
               <p v-if="plan.manualAdjustmentCount && plan.bufferException" class="shore-note">手动调整后有点位低于原方案离岸距离，请结合岸线和现场条件复核。</p>
               <p v-if="plan.accessVerificationRequired" class="shore-note">{{ plan.accessNote }}</p>
             </section>
             <section class="control-section">
               <div class="control-heading"><h3>采样点数量</h3><span>{{ MIN_POINT_COUNT }}–{{ MAX_POINT_COUNT }} 点</span></div>
               <div class="count-control">
-                <button :disabled="plan.count <= MIN_POINT_COUNT" aria-label="减少采样点" @click="rebuild(plan.count - 1)"><Minus :size="18" /></button>
-                <input v-model="countInput" type="number" :min="MIN_POINT_COUNT" :max="MAX_POINT_COUNT" step="1" aria-label="采样点数量" @change="applyCount" @keydown.enter="applyCount" />
-                <button :disabled="plan.count >= MAX_POINT_COUNT" aria-label="增加采样点" @click="rebuild(plan.count + 1)"><Plus :size="18" /></button>
+                <button :disabled="plan.count <= MIN_POINT_COUNT" aria-label="删除最后一个采样点" @click="removeLastPoint"><Minus :size="18" /></button>
+                <output aria-live="polite">{{ plan.count }}</output>
+                <button :class="{ active: addingPoint }" :disabled="plan.count >= MAX_POINT_COUNT" :aria-label="addingPoint ? '取消添加采样点' : '在地图上追加采样点'" :aria-pressed="addingPoint" @click="toggleAddingPoint"><Plus :size="18" /></button>
               </div>
+              <p class="count-hint">点击“＋”后在水面上放置下一个编号点；“－”只删除最后一个点，不会重新排列其余点位。</p>
               <button class="restore-button" :disabled="plan.count === defaultCount && !plan.manualAdjustmentCount" @click="rebuild()">恢复默认 {{ defaultCount }} 点</button>
               <dl class="design-metrics">
                 <div><dt>编号连线总长</dt><dd>{{ plan.routeDistanceKm }}<small> km</small></dd></div>
@@ -269,7 +306,7 @@ onBeforeUnmount(() => {
               <details>
                 <summary>点位坐标明细 <span>WGS84 · {{ plan.count }} 点</span></summary>
                 <div class="coordinate-scroll"><table><thead><tr><th>编号</th><th>经度</th><th>纬度</th></tr></thead><tbody>
-                  <tr v-for="point in plan.points" :key="point.id"><td>{{ point.name }}<small v-if="point.manuallyAdjusted"> 手调</small></td><td>{{ point.longitude.toFixed(8) }}</td><td>{{ point.latitude.toFixed(8) }}</td></tr>
+                  <tr v-for="point in plan.points" :key="point.id"><td>{{ point.name }}<small v-if="point.manuallyAdded"> 新增</small><small v-else-if="point.manuallyAdjusted"> 手调</small></td><td>{{ point.longitude.toFixed(8) }}</td><td>{{ point.latitude.toFixed(8) }}</td></tr>
                 </tbody></table></div>
               </details>
             </section>
@@ -298,6 +335,7 @@ onBeforeUnmount(() => {
 .designer-body{display:grid;grid-template-columns:minmax(0,1fr) 360px;flex:1;min-height:0}
 .design-map{position:relative;min-height:0;display:flex;flex-direction:column;background:#0a1d29}
 .design-map-viewport{position:relative;flex:1;min-height:0;background:#e0eaeb}.design-map-canvas{position:absolute;inset:0}
+.design-map-viewport.adding-point :deep(.leaflet-container){cursor:crosshair}
 .design-map-toolbar{display:flex;align-items:center;gap:12px;justify-content:space-between;padding:12px 18px;border-top:1px solid var(--line)}
 .map-caption{display:flex;flex-direction:column;gap:4px;min-width:0}
 .map-caption strong{font-size:15px}.map-caption span{font-size:11px;color:#aad1da}
@@ -315,8 +353,9 @@ onBeforeUnmount(() => {
 .control-heading{display:flex;align-items:center;justify-content:space-between;gap:10px}.control-heading h3{margin:0}.control-heading span{color:#83a5b6;font-size:11px}
 .count-control{display:flex;align-items:center;justify-content:space-between;margin-top:15px;border:1px solid #365462;border-radius:10px;overflow:hidden;background:#091f2c}
 .count-control button{display:grid;place-items:center;width:48px;align-self:stretch;border:0;background:#163643;cursor:pointer;color:#d2e9ee}
-.count-control input{width:100%;min-width:0;height:48px;text-align:center;background:transparent;border:0;color:#e5f2f7;font-size:22px;font-weight:700;appearance:textfield}
-.count-control input::-webkit-inner-spin-button,.count-control input::-webkit-outer-spin-button{appearance:none}
+.count-control output{display:grid;place-items:center;width:100%;min-width:0;height:48px;text-align:center;color:#e5f2f7;font-size:22px;font-weight:700}
+.count-control button.active{background:#1f6f63;color:#ecfffb;box-shadow:inset 0 0 0 1px #61d5c2}
+.count-hint{margin:9px 0 0;color:#83a5b6;font-size:11px;line-height:1.65}
 button:disabled{opacity:.4;cursor:default}.restore-button{margin-top:10px;width:100%;background:transparent;font-size:11px}
 .design-metrics{display:grid;grid-template-columns:1fr 1fr;gap:18px 10px;margin:22px 0 0}.design-metrics dt{color:#83a5b6;font-size:11px}.design-metrics dd{margin:5px 0 0;font-size:23px;font-weight:600;color:#d8f5f1}.design-metrics dd small{font-size:11px;font-weight:400;color:#83a5b6}.design-metrics dd.source-value{font-size:13px;line-height:28px}
 .coordinate-section{padding-top:16px;padding-bottom:16px}summary{cursor:pointer;font-size:13px}summary span{float:right;color:#83a5b6;font-size:10px}

@@ -33,6 +33,7 @@ export interface SamplingPoint {
   latitude: number
   shoreDistanceKm: number
   manuallyAdjusted?: boolean
+  manuallyAdded?: boolean
 }
 
 export interface SamplingPlan {
@@ -368,6 +369,18 @@ function samplingMetrics(points: SamplingPoint[]) {
   }
 }
 
+function updateManuallyEditedPlan(plan: SamplingPlan, points: SamplingPoint[]): SamplingPlan {
+  const metrics = samplingMetrics(points)
+  return {
+    ...plan,
+    ...metrics,
+    count: points.length,
+    points,
+    bufferException: metrics.minimumShoreDistanceM < plan.shorelineBufferM,
+    manualAdjustmentCount: points.filter((point) => point.manuallyAdjusted).length,
+  }
+}
+
 function scopedReferencePoints(reservoir: SamplingReservoir, references: SamplingReferenceLayouts, geometry = createGeometry(reservoir)) {
   const reference = references[reservoir.id]
   if (!reference) return []
@@ -493,14 +506,36 @@ export function moveSamplingPoint(
     }
   })
   if (!moved) throw new Error('没有找到需要调整的点位')
-  const metrics = samplingMetrics(points)
-  return {
-    ...plan,
-    ...metrics,
-    points,
-    bufferException: metrics.minimumShoreDistanceM < plan.shorelineBufferM,
-    manualAdjustmentCount: points.filter((point) => point.manuallyAdjusted).length,
-  }
+  return updateManuallyEditedPlan(plan, points)
+}
+
+export function addSamplingPoint(
+  reservoir: SamplingReservoir,
+  plan: SamplingPlan,
+  longitude: number,
+  latitude: number,
+): SamplingPlan {
+  if (plan.count >= MAX_POINT_COUNT) throw new Error(`采样点最多为 ${MAX_POINT_COUNT} 个`)
+  if (![longitude, latitude].every(Number.isFinite)) throw new Error('目标坐标无效，请重新选择位置')
+  const geometry = createGeometry(reservoir)
+  const projected = geometry.project([longitude, latitude])
+  if (!pointInGeometry(projected, geometry)) throw new Error('新增点位必须位于河南库区水面范围内')
+  const id = plan.points.length + 1
+  const points = [...plan.points, {
+    id,
+    name: String(id).padStart(2, '0'),
+    longitude: Number(longitude.toFixed(8)),
+    latitude: Number(latitude.toFixed(8)),
+    shoreDistanceKm: shoreDistanceInGeometry(projected, geometry),
+    manuallyAdjusted: true,
+    manuallyAdded: true,
+  }]
+  return updateManuallyEditedPlan(plan, points)
+}
+
+export function removeLastSamplingPoint(plan: SamplingPlan): SamplingPlan {
+  if (plan.count <= MIN_POINT_COUNT) throw new Error(`采样点至少保留 ${MIN_POINT_COUNT} 个`)
+  return updateManuallyEditedPlan(plan, plan.points.slice(0, -1))
 }
 
 function escapeXml(value: unknown) {
@@ -511,10 +546,10 @@ function escapeXml(value: unknown) {
 export function buildOviKml(reservoir: SamplingReservoir, plan: SamplingPlan) {
   const documentName = `${reservoir.name_cn}-${plan.schemeLabel}采样点`
   const accessText = plan.accessVerificationRequired ? ' · 岸边可达候选，须现场复核道路、坡岸与管制条件' : ''
-  const manualText = plan.manualAdjustmentCount ? ` · ${plan.manualAdjustmentCount}个点位已手动调整` : ''
+  const manualText = plan.manualAdjustmentCount ? ` · ${plan.manualAdjustmentCount}个点位已手动编辑` : ''
   const placemarks = plan.points.map((point) => `      <Placemark>
         <name>${escapeXml(point.name)}</name>
-        <description>${escapeXml(`${reservoir.name_cn} · 河南库区 · ${plan.schemeLabel} · ${reservoir.basin} · 采样点 ${point.name}${point.manuallyAdjusted ? ' · 手动调整' : ''}${accessText}`)}</description>
+        <description>${escapeXml(`${reservoir.name_cn} · 河南库区 · ${plan.schemeLabel} · ${reservoir.basin} · 采样点 ${point.name}${point.manuallyAdded ? ' · 手动新增' : point.manuallyAdjusted ? ' · 手动调整' : ''}${accessText}`)}</description>
         <styleUrl>#m_ylw-pushpin</styleUrl>
         <OvAttr><OvIcon>4</OvIcon><OvIconNum>0</OvIconNum></OvAttr>
         <OvCoordType>CGCS2000</OvCoordType>

@@ -6,8 +6,8 @@ import type {
   ReservoirCollection, SamplingReferenceLayouts, SamplingReservoir, SamplingScopeCollection,
 } from '../types'
 import {
-  buildOviKml, buildSamplingPlan, createGeometry, createSamplingReservoir, getSamplingSchemes,
-  moveSamplingPoint, pointInGeometry,
+  addSamplingPoint, buildOviKml, buildSamplingPlan, createGeometry, createSamplingReservoir, getSamplingSchemes,
+  moveSamplingPoint, pointInGeometry, removeLastSamplingPoint,
 } from './sampling'
 import type { SamplingPlan, SamplingScheme } from './sampling'
 
@@ -117,8 +117,32 @@ describe('web and mini program sampling parity', () => {
     expect(moved).not.toBe(originalPlan)
     expect(moved.points).not.toBe(originalPlan.points)
     expect(buildOviKml(reservoir, moved)).toContain(`${longitude.toFixed(8)},${latitude.toFixed(8)},0`)
-    expect(buildOviKml(reservoir, moved)).toContain('1个点位已手动调整')
+    expect(buildOviKml(reservoir, moved)).toContain('1个点位已手动编辑')
     expect(() => moveSamplingPoint(reservoir, originalPlan, original.id, 100, 20))
       .toThrow('点位必须保留在河南库区水面范围内')
+  })
+
+  it('appends and removes only the final point without rearranging the existing layout', () => {
+    const reservoir = reservoirs.find((item) => item.id === 'HN_RSV_007')!
+    const originalPlan = buildSamplingPlan(reservoir, references)
+    const anchor = originalPlan.points[0]
+    const longitude = anchor.longitude + 0.00001
+    const latitude = anchor.latitude + 0.00001
+    const added = addSamplingPoint(reservoir, originalPlan, longitude, latitude)
+    expect(added.points.slice(0, originalPlan.count)).toEqual(originalPlan.points)
+    expect(added.count).toBe(originalPlan.count + 1)
+    expect(added.points.at(-1)).toMatchObject({
+      id: originalPlan.count + 1,
+      name: String(originalPlan.count + 1).padStart(2, '0'),
+      longitude,
+      latitude,
+      manuallyAdded: true,
+    })
+    expect(buildOviKml(reservoir, added)).toContain('手动新增')
+    const removed = removeLastSamplingPoint(added)
+    expect(removed.count).toBe(originalPlan.count)
+    expect(removed.points).toEqual(originalPlan.points)
+    expect(() => addSamplingPoint(reservoir, originalPlan, 100, 20))
+      .toThrow('新增点位必须位于河南库区水面范围内')
   })
 })
