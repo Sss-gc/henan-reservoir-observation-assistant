@@ -16,6 +16,8 @@ const mini = require('./utils/sampling.js') as {
   buildSamplingPlan: (reservoir: SamplingReservoir, request?: number | { schemeId: 'sync' | 'shore'; count?: number }) => SamplingPlan
   buildOviKml: typeof buildOviKml
   moveSamplingPoint: typeof moveSamplingPoint
+  addSamplingPoint: typeof addSamplingPoint
+  removeLastSamplingPoint: typeof removeLastSamplingPoint
   getSamplingSchemes: (reservoir: SamplingReservoir) => SamplingScheme[]
 }
 const miniReservoirs = require('./data/reservoirs.js') as SamplingReservoir[]
@@ -129,6 +131,8 @@ describe('web and mini program sampling parity', () => {
     const longitude = anchor.longitude + 0.00001
     const latitude = anchor.latitude + 0.00001
     const added = addSamplingPoint(reservoir, originalPlan, longitude, latitude)
+    const miniAdded = mini.addSamplingPoint(miniById.get(reservoir.id)!, originalPlan, longitude, latitude)
+    expect(added).toEqual(miniAdded)
     expect(added.points.slice(0, originalPlan.count)).toEqual(originalPlan.points)
     expect(added.count).toBe(originalPlan.count + 1)
     expect(added.points.at(-1)).toMatchObject({
@@ -140,6 +144,7 @@ describe('web and mini program sampling parity', () => {
     })
     expect(buildOviKml(reservoir, added)).toContain('手动新增')
     const removed = removeLastSamplingPoint(added)
+    expect(removed).toEqual(mini.removeLastSamplingPoint(miniAdded))
     expect(removed.count).toBe(originalPlan.count)
     expect(removed.points).toEqual(originalPlan.points)
     expect(() => addSamplingPoint(reservoir, originalPlan, 100, 20))

@@ -3,6 +3,7 @@ const referenceLayouts = require('../data/sampling-reference')
 const REFERENCE_COUNTS = Object.fromEntries(Object.entries(referenceLayouts)
   .map(([id, reference]) => [id, reference.points.length]))
 const MAX_POINT_COUNT = 50
+const MIN_POINT_COUNT = 6
 
 const SAMPLING_SCHEMES = [
   { id: 'sync', label: '星地同步', badge: '推荐', description: '参照既有点位的布局与分布规律' },
@@ -280,7 +281,7 @@ function buildSamplingPlan(reservoir, request) {
   const scheme = SAMPLING_SCHEMES.find((item) => item.id === schemeId) || SAMPLING_SCHEMES[0]
   const fallbackCount = schemePointCount(reservoir, scheme.id)
   const requestedCount = structuredRequest ? request.count : request
-  const count = clamp(Math.round(Number(requestedCount) || fallbackCount), 6, MAX_POINT_COUNT)
+  const count = clamp(Math.round(Number(requestedCount) || fallbackCount), MIN_POINT_COUNT, MAX_POINT_COUNT)
   const geometry = createGeometry(reservoir)
   const reference = referenceLayouts[reservoir.id]
   const referencePoints = scopedReferencePoints(reservoir, geometry)
@@ -336,10 +337,35 @@ function moveSamplingPoint(reservoir, plan, pointId, longitude, latitude) {
       shoreDistanceKm: shoreDistanceInGeometry(projected, geometry), manuallyAdjusted: true }
   })
   if (!moved) throw new Error('没有找到需要调整的点位')
+  return updateManuallyEditedPlan(plan, points)
+}
+
+function updateManuallyEditedPlan(plan, points) {
   const metrics = samplingMetrics(points)
-  return { ...plan, ...metrics, points,
+  return { ...plan, ...metrics, count: points.length, points,
     bufferException: metrics.minimumShoreDistanceM < plan.shorelineBufferM,
     manualAdjustmentCount: points.filter((point) => point.manuallyAdjusted).length }
+}
+
+function addSamplingPoint(reservoir, plan, longitude, latitude) {
+  if (plan.count >= MAX_POINT_COUNT) throw new Error(`采样点最多为 ${MAX_POINT_COUNT} 个`)
+  if (![longitude, latitude].every(Number.isFinite)) throw new Error('目标坐标无效，请重新选择位置')
+  const geometry = createGeometry(reservoir)
+  const projected = geometry.project([longitude, latitude])
+  if (!pointInGeometry(projected, geometry)) throw new Error('新增点位必须位于河南库区水面范围内')
+  const id = plan.points.length + 1
+  const points = [...plan.points, {
+    id, name: String(id).padStart(2, '0'),
+    longitude: Number(longitude.toFixed(8)), latitude: Number(latitude.toFixed(8)),
+    shoreDistanceKm: shoreDistanceInGeometry(projected, geometry),
+    manuallyAdjusted: true, manuallyAdded: true,
+  }]
+  return updateManuallyEditedPlan(plan, points)
+}
+
+function removeLastSamplingPoint(plan) {
+  if (plan.count <= MIN_POINT_COUNT) throw new Error(`采样点至少保留 ${MIN_POINT_COUNT} 个`)
+  return updateManuallyEditedPlan(plan, plan.points.slice(0, -1))
 }
 
 function escapeXml(value) {
@@ -350,10 +376,10 @@ function escapeXml(value) {
 function buildOviKml(reservoir, plan) {
   const documentName = `${reservoir.name_cn}-${plan.schemeLabel}采样点`
   const accessText = plan.accessVerificationRequired ? ' · 岸边可达候选，须现场复核道路、坡岸与管制条件' : ''
-  const manualText = plan.manualAdjustmentCount ? ` · ${plan.manualAdjustmentCount}个点位已手动调整` : ''
+  const manualText = plan.manualAdjustmentCount ? ` · ${plan.manualAdjustmentCount}个点位已手动编辑` : ''
   const placemarks = plan.points.map((point) => `      <Placemark>
         <name>${escapeXml(point.name)}</name>
-        <description>${escapeXml(`${reservoir.name_cn} · 河南库区 · ${plan.schemeLabel} · ${reservoir.basin || ''} · 采样点 ${point.name}${point.manuallyAdjusted ? ' · 手动调整' : ''}${accessText}`)}</description>
+        <description>${escapeXml(`${reservoir.name_cn} · 河南库区 · ${plan.schemeLabel} · ${reservoir.basin || ''} · 采样点 ${point.name}${point.manuallyAdded ? ' · 手动新增' : point.manuallyAdjusted ? ' · 手动调整' : ''}${accessText}`)}</description>
         <styleUrl>#m_ylw-pushpin</styleUrl>
         <OvAttr><OvIcon>4</OvIcon><OvIconNum>0</OvIconNum></OvAttr>
         <OvCoordType>CGCS2000</OvCoordType>
@@ -399,7 +425,8 @@ function buildSamplingMap(plan, coordinateConverter, selectedPointId = 0) {
 }
 
 module.exports = {
-  REFERENCE_COUNTS, MAX_POINT_COUNT, defaultPointCount, standardPointCount, shorePointCount,
-  schemePointCount, getSamplingSchemes, buildSamplingPlan, moveSamplingPoint, buildSamplingMap, buildOviKml,
+  REFERENCE_COUNTS, MAX_POINT_COUNT, MIN_POINT_COUNT, defaultPointCount, standardPointCount, shorePointCount,
+  schemePointCount, getSamplingSchemes, buildSamplingPlan, moveSamplingPoint, addSamplingPoint,
+  removeLastSamplingPoint, buildSamplingMap, buildOviKml,
   largestRing, createGeometry, pointInGeometry,
 }

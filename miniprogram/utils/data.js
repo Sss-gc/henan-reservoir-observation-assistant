@@ -181,6 +181,16 @@ function wgs84ToGcj02(longitude, latitude) {
     latitude: latitude + latOffset * 180 / (A * (1 - EE) / magic ** 1.5 * PI),
   }
 }
+function gcj02ToWgs84(longitude, latitude) {
+  if (longitude < 72.004 || longitude > 137.8347 || latitude < 0.8293 || latitude > 55.8271) return { longitude, latitude }
+  let wgsLongitude = longitude, wgsLatitude = latitude
+  for (let index = 0; index < 4; index++) {
+    const converted = wgs84ToGcj02(wgsLongitude, wgsLatitude)
+    wgsLongitude += longitude - converted.longitude
+    wgsLatitude += latitude - converted.latitude
+  }
+  return { longitude: wgsLongitude, latitude: wgsLatitude }
+}
 function bounds(points) {
   if (!points.length) return []
   let west = Infinity, east = -Infinity, south = Infinity, north = -Infinity
@@ -217,4 +227,4 @@ function getMapData(id) {
 }
 module.exports = { meta, refresh, reset, hasRecentData, getReservoir, getReservoirList, getWeather, getWeatherCards,
   getPass, getPasses, getBestPasses, getSatelliteOptions, getPlanGroups, buildPlanText, getBasins, getMapData, buildNativeMapData,
-  wgs84ToGcj02 }
+  wgs84ToGcj02, gcj02ToWgs84 }

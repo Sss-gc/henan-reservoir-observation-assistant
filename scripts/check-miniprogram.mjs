@@ -488,15 +488,39 @@ await check('采样点按参考方案或水面边界设计，并导出奥维可�
   assert.ok(Math.abs(home.data.pointPlan.points[0].longitude - validNudge.longitude) < 1e-7)
   assert.ok(Math.abs(home.data.pointPlan.points[0].latitude - validNudge.latitude) < 1e-7)
   assert.match(home.data.pointAdjustmentMessage, /可继续微调/)
-  assert.match(sampling.buildOviKml(reservoir, home.data.pointPlan), /1个点位已手动调整/)
+  assert.match(sampling.buildOviKml(reservoir, home.data.pointPlan), /1个点位已手动编辑/)
   home.cancelPointAdjustment(); assert.equal(home.data.pointAdjustingId, 0)
   home.restorePointPlan(); assert.equal(home.data.pointPlan.manualAdjustmentCount, 0)
   home.selectPointScheme(event({ id: 'sync' }))
   const syncCount = sampling.standardPointCount(reservoir)
   assert.equal(home.data.pointCount, syncCount); assert.equal(home.data.pointSchemeAdjustable, true)
-  home.increasePointCount(); assert.equal(home.data.pointCount, syncCount + 1)
-  assert.equal(home.data.pointMap.markers.length, syncCount + 1)
-  home.decreasePointCount(); assert.equal(home.data.pointCount, syncCount); assert.equal(home.data.pointPlan.source, 'reference')
+  const originalLayout = home.data.pointPlan.points.map((point) => ({ ...point }))
+  const addTarget = data.wgs84ToGcj02(validNudge.longitude, validNudge.latitude)
+  home.togglePointAddition(); assert.equal(home.data.pointAdding, true)
+  home._ignorePointMapTapUntil = 0
+  home.addPointAtMapLocation({ detail: addTarget })
+  assert.equal(home.data.pointAdding, false); assert.equal(home.data.pointCount, syncCount + 1)
+  assert.deepEqual(home.data.pointPlan.points.slice(0, syncCount), originalLayout)
+  assert.deepEqual(home.data.pointPlan.points.at(-1), {
+    id: syncCount + 1, name: String(syncCount + 1).padStart(2, '0'),
+    longitude: Number(validNudge.longitude.toFixed(8)), latitude: Number(validNudge.latitude.toFixed(8)),
+    shoreDistanceKm: home.data.pointPlan.points.at(-1).shoreDistanceKm,
+    manuallyAdjusted: true, manuallyAdded: true,
+  })
+  assert.equal(home.data.pointAdjustingId, syncCount + 1)
+  assert.match(sampling.buildOviKml(reservoir, home.data.pointPlan), /手动新增/)
+  home.decreasePointCount(); assert.equal(home.data.pointCount, syncCount)
+  assert.deepEqual(home.data.pointPlan.points, originalLayout); assert.equal(home.data.pointPlan.source, 'reference')
+  assert.equal(home.data.pointHasEdits, true)
+  home.togglePointAddition(); assert.equal(home.data.pointAdding, true)
+  home.togglePointAddition(); assert.equal(home.data.pointAdding, false)
+  home.togglePointAddition(); home._ignorePointMapTapUntil = 0
+  home.addPointAtMapLocation({ detail: addTarget }); assert.equal(home.data.pointCount, syncCount + 1)
+  home.restorePointPlan(); assert.equal(home.data.pointCount, syncCount); assert.equal(home.data.pointPlan.source, 'reference')
+  assert.equal(home.data.pointHasEdits, false)
+  home.decreasePointCount(); assert.equal(home.data.pointCount, syncCount - 1)
+  assert.deepEqual(home.data.pointPlan.points, originalLayout.slice(0, -1))
+  home.restorePointPlan(); assert.equal(home.data.pointCount, syncCount)
   home.selectPointScheme(event({ id: 'shore' }))
   assert.equal(home.data.pointCount, 10); assert.equal(home.data.pointPlan.schemeLabel, '岸边加密')
   assert.equal(home.data.pointPlan.accessVerificationRequired, true)
@@ -518,9 +542,11 @@ await check('采样点按参考方案或水面边界设计，并导出奥维可�
   assert.equal(pointMapNode.getAttribute('show-compass'), '{{false}}')
   assert.equal(pointMapNode.getAttribute('bindmarkertap'), 'selectPointForAdjustment')
   assert.equal(pointMapNode.getAttribute('bindlabeltap'), 'selectPointForAdjustment')
-  assert.equal(pointMapNode.hasAttribute('bindtap'), false)
+  assert.equal(pointMapNode.getAttribute('bindtap'), 'addPointAtMapLocation')
   assert.match(fullTemplate, /class="point-nudge-controls"/)
   assert.equal((fullTemplate.match(/bindtap="nudgeSelectedPoint"/g) || []).length, 4)
+  assert.match(fullTemplate, /bindtap="togglePointAddition"/)
+  assert.match(fullTemplate, /wx:elif="{{pointHasEdits}}"[^>]+bindtap="restorePointPlan"/)
   const dashboardStyles = fs.readFileSync(path.join(mini, 'pages/dashboard/dashboard.wxss'), 'utf8')
   assert.match(dashboardStyles, /\.reservoir-location[^}]+white-space:\s*nowrap/)
   assert.match(dashboardStyles, /\.point-back-button[^}]+flex:\s*0 0 74rpx[^}]+min-width:\s*74rpx[^}]+max-width:\s*74rpx/, '返回按钮必须保持紧凑且不能被页头拉伸')
@@ -680,6 +706,9 @@ await check('腾讯地图显示坐标转换正确，河南库区边界及面积�
   const beijing = data.buildNativeMapData(fixture).view.markers[0]
   assert.ok(Math.abs(beijing.longitude - 116.40337249402477) < 1e-8)
   assert.ok(Math.abs(beijing.latitude - 39.91793074924595) < 1e-8)
+  const restoredBeijing = data.gcj02ToWgs84(beijing.longitude, beijing.latitude)
+  assert.ok(Math.abs(restoredBeijing.longitude - 116.397128) < 1e-7)
+  assert.ok(Math.abs(restoredBeijing.latitude - 39.916527) < 1e-7)
   fixture.markers[0] = { id: 'point', name: 'test', longitude: -74, latitude: 40 }
   const outside = data.buildNativeMapData(fixture).view.markers[0]
   assert.equal(outside.longitude, -74); assert.equal(outside.latitude, 40)
