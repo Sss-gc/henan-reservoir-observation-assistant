@@ -6,7 +6,7 @@ import type { ReservoirFeature, SamplingReferenceLayouts, SamplingReservoir, Sam
 import {
   addSamplingPoint, buildOviKml, buildSamplingPlan, createSamplingReservoir, getSamplingSchemes,
   MAX_POINT_COUNT, MIN_POINT_COUNT, moveSamplingPoint, removeLastSamplingPoint, reservoirBasin,
-  samplingPointDistanceM, samplingPointShoreMeasurement,
+  samplingPointDistanceM,
 } from '../services/sampling'
 import type { SamplingPlan, SamplingScheme } from '../services/sampling'
 
@@ -25,8 +25,8 @@ const adjustmentMessage = ref('拖动任一编号点可手动调整位置；点�
 const adjustmentError = ref(false)
 const addingPoint = ref(false)
 const measuringPoints = ref(false)
-const measurementMode = ref<'points' | 'shore'>('points')
 const measurementPointIds = ref<number[]>([])
+const measurementTarget = ref<{ longitude: number; latitude: number } | null>(null)
 const basemapUnavailable = ref(false)
 const schemeId = ref<SamplingScheme['id']>('sync')
 const requestController = new AbortController()
@@ -48,19 +48,16 @@ const sourceLabel = computed(() => plan.value?.source === 'reference'
     ? `岸边候选点位${plan.value?.manualAdjustmentCount ? ` · 手动编辑${plan.value.manualAdjustmentCount}点` : ''}`
     : `自动设计点位${plan.value?.manualAdjustmentCount ? ` · 手动编辑${plan.value.manualAdjustmentCount}点` : ''}`)
 const measurementText = computed(() => {
-  if (!measuringPoints.value) return '可测两个点位之间，或点位到最近岸边的直线距离'
+  if (!measuringPoints.value) return '可测两个点位之间，或点位到自选岸边位置的直线距离'
   const points = measurementPointIds.value
     .map((id) => plan.value?.points.find((point) => point.id === id))
     .filter((point) => point !== undefined)
-  if (!points.length) return measurementMode.value === 'shore'
-    ? '岸距测量已开启：请选择一个编号点'
-    : '点间测量已开启：请选择第一个编号点'
-  if (measurementMode.value === 'shore') {
-    if (!reservoir.value) return '当前水库边界尚未载入'
-    const measurement = samplingPointShoreMeasurement(reservoir.value, points[0])
-    return `${points[0].name} 距最近岸边：${measurement.distanceM.toLocaleString('zh-CN')} m`
+  if (!points.length) return '测距已开启：请选择第一个编号点'
+  if (measurementTarget.value) {
+    const distance = samplingPointDistanceM(points[0], measurementTarget.value)
+    return `${points[0].name} 到所选岸边位置：${distance.toLocaleString('zh-CN')} m`
   }
-  if (points.length === 1) return `已选 ${points[0].name}：请再选择一个不同点位`
+  if (points.length === 1) return `已选 ${points[0].name}：再点一个编号点，或点击岸边位置`
   const distance = samplingPointDistanceM(points[0], points[1])
   return `${points[0].name} ↔ ${points[1].name}：${distance.toLocaleString('zh-CN')} m`
 })
@@ -100,6 +97,7 @@ function rebuild(count?: number, nextScheme = schemeId.value) {
   addingPoint.value = false
   measuringPoints.value = false
   measurementPointIds.value = []
+  measurementTarget.value = null
   try {
     const scope = scopes.value.features.find((feature) => feature.properties.id === props.selected.properties.id)
     if (!scope) throw new Error('该水库暂缺河南库区采样边界')
@@ -121,6 +119,7 @@ function toggleAddingPoint() {
   addingPoint.value = !addingPoint.value
   measuringPoints.value = false
   measurementPointIds.value = []
+  measurementTarget.value = null
   adjustmentError.value = false
   adjustmentMessage.value = addingPoint.value
     ? `添加模式：请在水面上点击放置 ${String(plan.value.count + 1).padStart(2, '0')} 号点。`
@@ -129,12 +128,20 @@ function toggleAddingPoint() {
 }
 
 function addPointAtMapLocation(event: L.LeafletMouseEvent) {
+  if (measuringPoints.value && measurementPointIds.value.length === 1 && plan.value) {
+    const selectedPoint = plan.value.points.find((point) => point.id === measurementPointIds.value[0])
+    if (!selectedPoint) return
+    measurementTarget.value = { longitude: event.latlng.lng, latitude: event.latlng.lat }
+    drawPlan(false)
+    return
+  }
   if (!addingPoint.value || !reservoir.value || !plan.value) return
   try {
     plan.value = addSamplingPoint(reservoir.value, plan.value, event.latlng.lng, event.latlng.lat)
     addingPoint.value = false
     measuringPoints.value = false
     measurementPointIds.value = []
+    measurementTarget.value = null
     adjustmentError.value = false
     adjustmentMessage.value = `${plan.value.points.at(-1)?.name} 号点已添加；原有点位均保持不变，可继续拖动微调。`
     drawPlan(false)
@@ -152,6 +159,7 @@ function removeLastPoint() {
     addingPoint.value = false
     measuringPoints.value = false
     measurementPointIds.value = []
+    measurementTarget.value = null
     adjustmentError.value = false
     adjustmentMessage.value = `${removedName} 号点已删除；其余点位位置保持不变。`
     drawPlan(false)
@@ -161,10 +169,10 @@ function removeLastPoint() {
   }
 }
 
-function togglePointMeasurement(mode: 'points' | 'shore') {
-  measuringPoints.value = !(measuringPoints.value && measurementMode.value === mode)
-  measurementMode.value = mode
+function togglePointMeasurement() {
+  measuringPoints.value = !measuringPoints.value
   measurementPointIds.value = []
+  measurementTarget.value = null
   addingPoint.value = false
   adjustmentError.value = false
   drawPlan(false)
@@ -172,11 +180,7 @@ function togglePointMeasurement(mode: 'points' | 'shore') {
 
 function selectMeasurementPoint(pointId: number) {
   if (!measuringPoints.value) return
-  if (measurementMode.value === 'shore') {
-    measurementPointIds.value = [pointId]
-    drawPlan(false)
-    return
-  }
+  measurementTarget.value = null
   const selected = measurementPointIds.value
   if (selected.length === 1 && selected[0] !== pointId) measurementPointIds.value = [selected[0], pointId]
   else if (selected.length !== 1) measurementPointIds.value = [pointId]
@@ -219,14 +223,11 @@ function drawPlan(shouldFit = true) {
   const measuredPoints = measurementPointIds.value
     .map((id) => plan.value?.points.find((point) => point.id === id))
     .filter((point) => point !== undefined)
-  if ((measurementMode.value === 'points' && measuredPoints.length === 2)
-    || (measurementMode.value === 'shore' && measuredPoints.length === 1)) {
-    const shoreMeasurement = measurementMode.value === 'shore'
-      ? samplingPointShoreMeasurement(reservoir.value, measuredPoints[0])
-      : null
-    const distance = shoreMeasurement?.distanceM ?? samplingPointDistanceM(measuredPoints[0], measuredPoints[1])
-    const lineCoordinates = shoreMeasurement
-      ? [L.latLng(measuredPoints[0].latitude, measuredPoints[0].longitude), L.latLng(shoreMeasurement.latitude, shoreMeasurement.longitude)]
+  if (measuredPoints.length === 2 || (measuredPoints.length === 1 && measurementTarget.value)) {
+    const target = measurementTarget.value
+    const distance = target ? samplingPointDistanceM(measuredPoints[0], target) : samplingPointDistanceM(measuredPoints[0], measuredPoints[1])
+    const lineCoordinates = target
+      ? [L.latLng(measuredPoints[0].latitude, measuredPoints[0].longitude), L.latLng(target.latitude, target.longitude)]
       : measuredPoints.map((point) => L.latLng(point.latitude, point.longitude))
     L.polyline(lineCoordinates, {
       color: '#9b72cf', weight: 4, opacity: 0.95, interactive: false,
@@ -329,8 +330,7 @@ onBeforeUnmount(() => {
         <button class="back-button" aria-label="关闭点位设计，返回观测计划" @click="close"><ArrowLeft :size="19" /><span>返回</span></button>
         <div class="designer-title"><p class="eyebrow">WATER SAMPLING DESIGN</p><h2 id="sampling-title">采样点位设计</h2></div>
         <div class="designer-toolbar" aria-label="点位设计工具栏">
-          <button :class="['tool-button', { active: measuringPoints && measurementMode === 'points' }]" :aria-pressed="measuringPoints && measurementMode === 'points'" @click="togglePointMeasurement('points')"><Ruler :size="16" />两点距离</button>
-          <button :class="['tool-button', { active: measuringPoints && measurementMode === 'shore' }]" :aria-pressed="measuringPoints && measurementMode === 'shore'" @click="togglePointMeasurement('shore')"><LocateFixed :size="16" />点到岸边</button>
+          <button :class="['tool-button', { active: measuringPoints }]" :aria-pressed="measuringPoints" @click="togglePointMeasurement"><Ruler :size="16" />测距</button>
           <span :class="['tool-status', { active: measuringPoints }]" aria-live="polite">{{ measurementText }}</span>
         </div>
         <label class="reservoir-selector"><span>当前水库</span><select :value="selected.properties.id" aria-label="选择点位设计水库" @change="changeReservoir">

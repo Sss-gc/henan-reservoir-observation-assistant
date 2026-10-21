@@ -8,7 +8,6 @@ import type {
 import {
   addSamplingPoint, buildOviKml, buildSamplingPlan, createGeometry, createSamplingReservoir, getSamplingSchemes,
   moveSamplingPoint, pointInGeometry, removeLastSamplingPoint, samplingPointDistanceM,
-  samplingPointShoreMeasurement,
 } from './sampling'
 import type { SamplingPlan, SamplingScheme } from './sampling'
 
@@ -20,7 +19,6 @@ const mini = require('./utils/sampling.js') as {
   addSamplingPoint: typeof addSamplingPoint
   removeLastSamplingPoint: typeof removeLastSamplingPoint
   samplingPointDistanceM: typeof samplingPointDistanceM
-  samplingPointShoreMeasurement: typeof samplingPointShoreMeasurement
   getSamplingSchemes: (reservoir: SamplingReservoir) => SamplingScheme[]
 }
 const miniReservoirs = require('./data/reservoirs.js') as SamplingReservoir[]
@@ -160,14 +158,5 @@ describe('web and mini program sampling parity', () => {
     expect(expected).toBeGreaterThan(0)
     expect(expected).toBe(mini.samplingPointDistanceM(plan.points[0], plan.points[1]))
     expect(samplingPointDistanceM(plan.points[0], plan.points[0])).toBe(0)
-  })
-
-  it('measures the same shortest distance from a point to the reservoir shore on both clients', () => {
-    const reservoir = reservoirs.find((item) => item.id === 'HN_RSV_018')!
-    const plan = buildSamplingPlan(reservoir, references)
-    const expected = samplingPointShoreMeasurement(reservoir, plan.points[0])
-    const miniMeasurement = mini.samplingPointShoreMeasurement(reservoir, plan.points[0])
-    expect(expected.distanceM).toBe(Math.round(plan.points[0].shoreDistanceKm * 1000))
-    expect(miniMeasurement).toEqual(expected)
   })
 })
