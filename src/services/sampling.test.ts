@@ -7,7 +7,7 @@ import type {
 } from '../types'
 import {
   addSamplingPoint, buildOviKml, buildSamplingPlan, createGeometry, createSamplingReservoir, getSamplingSchemes,
-  moveSamplingPoint, pointInGeometry, removeLastSamplingPoint, samplingPointDistanceM,
+  moveSamplingPoint, pointInGeometry, removeLastSamplingPoint, samplingBoundaryLatLngs, samplingPointDistanceM,
 } from './sampling'
 import type { SamplingPlan, SamplingScheme } from './sampling'
 
@@ -42,6 +42,15 @@ describe('web and mini program sampling parity', () => {
     for (const reservoir of reservoirs) {
       expect(reservoir, reservoir.id).toEqual(miniById.get(reservoir.id))
     }
+  })
+
+  it('converts every sampling boundary for Leaflet, including Panshitou multipolygons', () => {
+    for (const reservoir of reservoirs) expect(samplingBoundaryLatLngs(reservoir).length, reservoir.id).toBeGreaterThan(0)
+    const panshitou = reservoirs.find((reservoir) => reservoir.id === 'HN_RSV_019')!
+    const boundary = samplingBoundaryLatLngs(panshitou)
+    const [longitude, latitude] = panshitou.polygons[0][0][0]
+    expect(boundary).toHaveLength(panshitou.polygons.length)
+    expect(boundary[0][0][0]).toEqual([latitude, longitude])
   })
 
   describe.each(reservoirs)('$name_cn ($id)', (reservoir) => {

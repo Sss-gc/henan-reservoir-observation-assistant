@@ -6,7 +6,7 @@ import type { ReservoirFeature, SamplingReferenceLayouts, SamplingReservoir, Sam
 import {
   addSamplingPoint, buildOviKml, buildSamplingPlan, createSamplingReservoir, getSamplingSchemes,
   MAX_POINT_COUNT, MIN_POINT_COUNT, moveSamplingPoint, removeLastSamplingPoint, reservoirBasin,
-  samplingPointDistanceM,
+  samplingBoundaryLatLngs, samplingPointDistanceM,
 } from '../services/sampling'
 import type { SamplingPlan, SamplingScheme } from '../services/sampling'
 
@@ -202,6 +202,11 @@ function initializeMap() {
 function drawPlan(shouldFit = true) {
   if (!map || !designLayer || !reservoir.value || !plan.value) return
   designLayer.clearLayers()
+  L.polygon(samplingBoundaryLatLngs(reservoir.value), {
+    color: '#4f83b9', weight: 2, opacity: 0.95,
+    fillColor: '#78a7dd', fillOpacity: 0.28,
+    interactive: false,
+  }).addTo(designLayer)
   const coordinates = plan.value.points.map((point) => L.latLng(point.latitude, point.longitude))
   L.polyline(coordinates, { color: '#b44d67', weight: 2, opacity: 0.8, dashArray: '5 7', interactive: false })
     .addTo(designLayer)

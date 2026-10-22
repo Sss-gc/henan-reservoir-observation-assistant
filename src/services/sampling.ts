@@ -131,6 +131,16 @@ export function createSamplingReservoir(feature: ReservoirFeature, scope: Sampli
   }
 }
 
+export function samplingBoundaryLatLngs(reservoir: SamplingReservoir): [number, number][][][] {
+  return reservoir.polygons
+    .map((polygon) => polygon
+      .map((ring) => ring
+        .filter(([longitude, latitude]) => Number.isFinite(longitude) && Number.isFinite(latitude))
+        .map(([longitude, latitude]): [number, number] => [latitude, longitude]))
+      .filter((ring) => ring.length >= 3))
+    .filter((polygon) => polygon.length > 0)
+}
+
 function normalizeRing(ring: SamplingCoordinate[]) {
   const points = (ring || []).filter((point) => Array.isArray(point) && Number.isFinite(point[0]) && Number.isFinite(point[1]))
   if (points.length > 3) {

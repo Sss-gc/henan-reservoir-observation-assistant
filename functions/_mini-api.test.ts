@@ -50,9 +50,11 @@ describe('mini program private website access', () => {
     expect(next).not.toHaveBeenCalled()
     await onRequest({ request: new Request('https://site.test/api/session', { method: 'POST' }), env, next } as unknown as Parameters<typeof onRequest>[0])
     expect(next).toHaveBeenCalledOnce()
-    const favicon = await onRequest({ request: new Request('https://site.test/favicon.png'), env, next } as unknown as Parameters<typeof onRequest>[0])
-    expect(await favicon.text()).toBe('protected')
-    expect(next).toHaveBeenCalledTimes(2)
+    for (const path of ['/favicon.png?v=20261022', '/favicon.ico?v=20261022']) {
+      const favicon = await onRequest({ request: new Request(`https://site.test${path}`), env, next } as unknown as Parameters<typeof onRequest>[0])
+      expect(await favicon.text()).toBe('protected')
+    }
+    expect(next).toHaveBeenCalledTimes(3)
     const token = await createSessionToken('test@example.com', env.AUTH_SESSION_SECRET)
     const response = await onRequest({ request: new Request('https://site.test/data/orbit-passes.json', { headers: { Authorization: `Bearer ${token}` } }), env, next } as unknown as Parameters<typeof onRequest>[0])
     expect(await response.text()).toBe('protected'); expect(response.headers.get('Cache-Control')).toContain('private')

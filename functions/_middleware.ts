@@ -2,7 +2,7 @@ import { requestHasValidSession, secureDynamicHeaders } from './_auth'
 
 export const onRequest: PagesFunction<Env> = async (context) => {
   const url = new URL(context.request.url)
-  const isPublicFavicon = url.pathname === '/favicon.png' &&
+  const isPublicFavicon = ['/favicon.png', '/favicon.ico'].includes(url.pathname) &&
     (context.request.method === 'GET' || context.request.method === 'HEAD')
   if (url.pathname === '/login' || isPublicFavicon ||
       (url.pathname === '/api/session' && context.request.method === 'POST')) return context.next()
