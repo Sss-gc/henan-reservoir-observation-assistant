@@ -44,13 +44,16 @@ describe('web and mini program sampling parity', () => {
     }
   })
 
-  it('converts every sampling boundary for Leaflet, including Panshitou multipolygons', () => {
+  it('converts every sampling boundary for Leaflet, including Panshitou and multipolygons', () => {
     for (const reservoir of reservoirs) expect(samplingBoundaryLatLngs(reservoir).length, reservoir.id).toBeGreaterThan(0)
-    const panshitou = reservoirs.find((reservoir) => reservoir.id === 'HN_RSV_019')!
+    const panshitou = reservoirs.find((reservoir) => reservoir.id === 'HN_RSV_007')!
     const boundary = samplingBoundaryLatLngs(panshitou)
     const [longitude, latitude] = panshitou.polygons[0][0][0]
     expect(boundary).toHaveLength(panshitou.polygons.length)
     expect(boundary[0][0][0]).toEqual([latitude, longitude])
+    const pohe = reservoirs.find((reservoir) => reservoir.id === 'HN_RSV_019')!
+    expect(pohe.polygons.length).toBeGreaterThan(1)
+    expect(samplingBoundaryLatLngs(pohe)).toHaveLength(pohe.polygons.length)
   })
 
   describe.each(reservoirs)('$name_cn ($id)', (reservoir) => {
