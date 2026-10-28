@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, onMounted, ref, watchEffect } from 'vue'
+import { useStorage } from '@vueuse/core'
 import * as L from 'leaflet'
 import type { GeoJsonObject } from 'geojson'
 import {
   CalendarCheck, ChevronLeft, ChevronRight, CircleAlert, CloudSun,
   DatabaseZap, ExternalLink, FileDown, LocateFixed, MapPinned, Menu, RefreshCw, Search,
-  LogOut, Satellite, X,
+  LogOut, Moon, Satellite, Sun, X,
 } from 'lucide-vue-next'
 import type {
   OrbitPassPayload, ReservoirCollection, ReservoirFeature, WeatherResult,
@@ -18,6 +19,17 @@ import { downloadAllReservoirReport } from './services/all-reservoir-report'
 import { reservoirBasin } from './services/sampling'
 
 const SamplingDesigner = defineAsyncComponent(() => import('./components/SamplingDesigner.vue'))
+
+const theme = useStorage('hroa-theme', 'light')
+const isDark = computed(() => theme.value === 'dark')
+watchEffect(() => {
+  document.documentElement.dataset.theme = isDark.value ? 'dark' : 'light'
+  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', isDark.value ? '#0b1220' : '#f5f7fb')
+})
+
+function toggleTheme() {
+  theme.value = isDark.value ? 'light' : 'dark'
+}
 
 const mapElement = ref<HTMLDivElement | null>(null)
 const reservoirs = ref<ReservoirFeature[]>([])
@@ -50,7 +62,7 @@ let reservoirLayer: L.GeoJSON | null = null
 const featureLayers = new Map<string, L.Layer>()
 const tiandituKey = import.meta.env.VITE_TIANDITU_KEY?.trim() ?? ''
 const basinColors: Record<string, string> = {
-  黄河流域: '#d08770', 淮河流域: '#88c0d0', 长江流域: '#a3be8c', 海河流域: '#b48ead',
+  黄河流域: '#f59e0b', 淮河流域: '#0ea5e9', 长江流域: '#10b981', 海河流域: '#8b5cf6',
 }
 const basinOptions = computed(() => Object.keys(basinColors).map((name) => ({
   name, count: reservoirs.value.filter((feature) => feature.properties.basin === name).length,
@@ -239,10 +251,10 @@ async function downloadAllPlans() {
 
 function reservoirStyle(feature?: ReservoirFeature) {
   const active = feature?.properties.id === selected.value?.properties.id
-  const basinColor = basinColors[feature?.properties.basin ?? ''] ?? '#2dd4bf'
+  const basinColor = basinColors[feature?.properties.basin ?? ''] ?? '#2563eb'
   return {
-    color: active ? '#fbbf24' : basinColor, weight: active ? 3 : 1.2,
-    fillColor: active ? '#f59e0b' : basinColor, fillOpacity: active ? 0.66 : 0.4,
+    color: active ? '#1d4ed8' : basinColor, weight: active ? 3 : 1.2,
+    fillColor: active ? '#3b82f6' : basinColor, fillOpacity: active ? 0.58 : 0.34,
   }
 }
 
@@ -378,7 +390,15 @@ onBeforeUnmount(() => {
 
     <div v-else class="workspace">
       <aside class="reservoir-sidebar" :class="{ mobileOpen: listOpenOnMobile }">
-        <div class="sidebar-title"><div><p class="eyebrow">{{ reservoirs.length }} RESERVOIRS</p><h2>选择实验水库</h2></div><button class="mobile-close" aria-label="关闭水库列表" @click="listOpenOnMobile = false"><X :size="20" /></button></div>
+        <div class="sidebar-title">
+          <div><p class="eyebrow">{{ reservoirs.length }} RESERVOIRS</p><h2>选择实验水库</h2></div>
+          <div class="sidebar-title-actions">
+            <button type="button" class="theme-toggle" :aria-label="isDark ? '切换到浅色模式' : '切换到深色模式'" :title="isDark ? '切换到浅色模式' : '切换到深色模式'" :aria-pressed="isDark" @click="toggleTheme">
+              <Sun v-if="isDark" :size="14" /><Moon v-else :size="14" /><span>{{ isDark ? '浅色' : '深色' }}</span>
+            </button>
+            <button class="mobile-close" aria-label="关闭水库列表" @click="listOpenOnMobile = false"><X :size="20" /></button>
+          </div>
+        </div>
         <label class="search-box"><Search :size="16" /><input v-model="searchQuery" aria-label="搜索水库" placeholder="搜索名称、流域、城市或编号" /><button v-if="searchQuery" aria-label="清空搜索" @click="searchQuery = ''"><X :size="14" /></button></label>
         <div class="basin-filters" aria-label="按流域筛选水库">
           <button :class="{ active: !selectedBasin }" :aria-pressed="!selectedBasin" @click="showReservoirOverview()">全部 {{ reservoirs.length }}</button>
@@ -501,18 +521,20 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .basin-filters{display:flex;flex-wrap:wrap;gap:6px;margin:0 3px 12px}
-.basin-filters button{display:flex;align-items:center;gap:5px;padding:6px 8px;border:1px solid var(--line);border-radius:7px;background:#0c2431;color:#9eb9c7;font-size:10px;cursor:pointer}
-.basin-filters button.active{border-color:var(--teal);color:#dffbf6;background:#123b42}
+.basin-filters button{display:flex;align-items:center;gap:5px;padding:6px 8px;border:1px solid var(--line-strong);border-radius:6px;background:var(--surface);color:var(--muted);font-size:10px;cursor:pointer}
+.basin-filters button:hover{border-color:var(--accent-border);color:var(--accent-ink);background:var(--panel)}
+.basin-filters button.active{border-color:var(--teal);color:var(--accent-ink);background:var(--teal-soft);font-weight:600}
 .basin-filters i{width:6px;height:6px;border-radius:50%}
 .map-panel{display:flex;flex-direction:column}
 .map-viewport{position:relative;flex:1;min-height:0}
-.map-design-actions{display:flex;flex-wrap:wrap;gap:8px;padding:10px 12px;background:#0a1d29;border-top:1px solid var(--line);flex:none}
+.map-design-actions{display:flex;flex-wrap:wrap;gap:8px;padding:10px 12px;background:var(--panel);border-top:1px solid var(--line);flex:none;box-shadow:0 -8px 24px rgba(15,23,42,.035)}
 .map-design-actions button{flex:1}
 .map-zoom-actions{display:flex;gap:4px}.map-zoom-actions button{min-width:30px;padding-left:7px;padding-right:7px}
-.map-design-actions button,.sampling-entry{display:inline-flex;align-items:center;justify-content:center;gap:6px;border:1px solid #365462;border-radius:9px;background:#0b2633;color:#d5e9ee;padding:9px 11px;font-size:11px;cursor:pointer;white-space:nowrap}
-.map-design-actions .sampling-entry,.sampling-entry{border-color:#318b83;background:#16453f;color:#bdf9eb}
-.sampling-entry:hover{background:#205a51}
+.map-design-actions button,.sampling-entry{display:inline-flex;align-items:center;justify-content:center;gap:6px;border:1px solid var(--line-strong);border-radius:6px;background:var(--surface);color:var(--text-strong);padding:9px 11px;font-size:11px;cursor:pointer;white-space:nowrap}
+.map-design-actions button:hover{border-color:var(--accent-border);background:var(--teal-soft);color:var(--accent-ink)}
+.map-design-actions .sampling-entry,.sampling-entry{border-color:var(--primary);background:var(--primary);color:#fff;font-weight:600}
+.sampling-entry:hover{background:var(--primary-hover)}
 .detail-title .sampling-entry{flex-shrink:0}
-.detail-title p.detail-basin{margin-top:5px;color:#8cd9cd;font-size:11px}
+.detail-title p.detail-basin{width:max-content;margin-top:7px;padding:3px 7px;border-radius:4px;background:var(--teal-soft);color:var(--accent-ink);font-size:10px;font-weight:600}
 @media(max-width:480px){.map-design-actions{gap:6px;padding:9px}.map-design-actions button{padding:10px 6px}.map-selection{left:12px;max-width:calc(100% - 24px)}.map-selection span{display:none}}
 </style>
