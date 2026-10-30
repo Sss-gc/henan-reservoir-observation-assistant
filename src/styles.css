@@ -1,5 +1,3 @@
-@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700&family=Manrope:wght@500;600;700&display=swap');
-
 :root {
   font-family: 'Noto Sans SC', 'HarmonyOS Sans SC', 'Microsoft YaHei UI', system-ui, sans-serif;
   color: var(--text);
@@ -131,7 +129,7 @@ button, a, input { transition: border-color .16s ease, background-color .16s eas
   background: var(--primary);
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .35), 0 9px 24px rgba(37, 99, 235, .18);
 }
-.eyebrow { margin: 0; color: var(--teal-dark); font: 700 9px/1.3 Manrope, sans-serif; letter-spacing: .17em; }
+.eyebrow { margin: 0; color: var(--teal-dark); font: 700 9px/1.3 Arial, sans-serif; letter-spacing: .17em; }
 .topbar h1 { margin: 3px 0 0; color: var(--text); font-size: 18px; letter-spacing: .01em; }
 .topbar-status { gap: 8px; }
 .topbar-status span, .logout-button {
@@ -209,7 +207,7 @@ button, a, input { transition: border-color .16s ease, background-color .16s eas
 .reservoir-item span strong, .reservoir-item span small { display: block; }
 .reservoir-item span strong { color: inherit; font-size: 12px; }
 .reservoir-item span small { margin-top: 3px; color: var(--text-caption); font-size: 10px; }
-.reservoir-item b { color: var(--text-subtle); font: 600 9px Manrope, sans-serif; }
+.reservoir-item b { color: var(--text-subtle); font: 600 9px Arial, sans-serif; }
 .sidebar-source { gap: 9px; margin-top: 10px; padding: 11px; border: 1px solid var(--card-line); border-left: 3px solid var(--primary); border-radius: 6px; color: var(--muted); background: var(--panel2); font-size: 10px; line-height: 1.6; }
 .sidebar-source svg { color: var(--teal); }
 
@@ -249,7 +247,7 @@ button, a, input { transition: border-color .16s ease, background-color .16s eas
 .detail-title { justify-content: space-between; margin-top: 7px; }
 .detail-title h2 { margin: 0; color: var(--text); font-size: 25px; letter-spacing: -.02em; }
 .detail-title p { gap: 5px; margin: 6px 0 0; color: var(--muted); font-size: 11px; }
-.detail-title > span { padding: 5px 7px; border-radius: 6px; background: var(--teal-soft); color: var(--accent-ink); font: 600 9px Manrope; }
+.detail-title > span { padding: 5px 7px; border-radius: 6px; background: var(--teal-soft); color: var(--accent-ink); font: 600 9px Arial, sans-serif; }
 .data-freshness { display: flex; gap: 12px; margin-top: 12px; color: var(--text-subtle); font-size: 9px; }
 .notice { gap: 9px; margin: 12px 12px 0; padding: 11px 12px; border: 1px solid var(--warning-line); border-left: 3px solid #f59e0b; border-radius: 6px; background: var(--warning-bg); color: var(--warning-text); }
 .notice svg { flex: 0 0 auto; color: var(--amber); }
@@ -282,7 +280,7 @@ button, a, input { transition: border-color .16s ease, background-color .16s eas
 .recommendation-date strong, .recommendation-date span { display: block; }
 .recommendation-date strong { color: var(--text); font-size: 13px; }
 .recommendation-date span { margin-top: 3px; color: var(--muted); font-size: 9px; }
-.recommendation-card > .score { position: absolute; right: 11px; top: 10px; color: var(--primary); font: 700 22px Manrope; }
+.recommendation-card > .score { position: absolute; right: 11px; top: 10px; color: var(--primary); font: 700 22px Arial, sans-serif; }
 .recommendation-satellite { gap: 5px; margin-top: 11px; font-size: 10px; color: var(--text-secondary); }
 .recommendation-satellite svg { color: var(--teal); }
 .recommendation-satellite span { padding: 2px 5px; border-radius: 4px; font-size: 8px; }
@@ -309,7 +307,7 @@ button, a, input { transition: border-color .16s ease, background-color .16s eas
 .weather-card { flex: 0 0 103px; scroll-snap-align: start; padding: 11px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); text-align: center; }
 .weather-card > span { display: block; color: var(--muted); font-size: 9px; }
 .weather-card > b { display: block; margin: 7px 0 3px; color: #f59e0b; font-size: 22px; line-height: 1; }
-.weather-card > strong { display: block; color: var(--text); font: 700 16px Manrope; }
+.weather-card > strong { display: block; color: var(--text); font: 700 16px Arial, sans-serif; }
 .weather-card > small { display: block; height: 29px; margin-top: 3px; color: var(--muted); font-size: 8px; line-height: 1.5; }
 .weather-card > em { display: flex; align-items: center; justify-content: center; gap: 3px; margin-top: 4px; color: var(--muted); font-style: normal; font-size: 8px; }
 .source-line { justify-content: space-between; gap: 8px; flex-wrap: wrap; margin-top: 7px; color: var(--text-subtle); font-size: 8px; }
@@ -328,13 +326,13 @@ button, a, input { transition: border-color .16s ease, background-color .16s eas
 .window-date { flex: 0 0 72px; }
 .window-date strong, .window-date span, .window-main strong, .window-main span, .window-score b, .window-score span { display: block; }
 .window-date strong { color: var(--text-strong); font-size: 10px; }
-.window-date span { margin-top: 3px; color: var(--muted); font: 600 10px Manrope; }
+.window-date span { margin-top: 3px; color: var(--muted); font: 600 10px Arial, sans-serif; }
 .window-main { min-width: 0; flex: 1; }
 .window-main strong { color: var(--text-strong); font-size: 11px; }
 .window-main .glint-inline { display: inline-block; margin-left: 5px; padding: 2px 5px; font-size: 8px; }
 .window-main span { margin-top: 4px; overflow: hidden; color: var(--muted); font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
 .window-score { flex: 0 0 45px; text-align: right; }
-.window-score b { font: 700 16px Manrope; }
+.window-score b { font: 700 16px Arial, sans-serif; }
 .window-score span { font-size: 8px; }
 .window-score.推荐 { color: var(--success-text); }
 .window-score.备选 { color: var(--yellow-text); }

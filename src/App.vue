@@ -14,8 +14,6 @@ import type {
 import { fetchAllWeather, fetchWeather, weatherSymbol } from './services/weather'
 import { isSupportedObservationPass, normalizeObservationPass } from './services/satellite'
 import { buildExperimentRecommendation } from './services/recommendation'
-import { downloadObservationPlan } from './services/document'
-import { downloadAllReservoirReport } from './services/all-reservoir-report'
 import { reservoirBasin } from './services/sampling'
 
 const SamplingDesigner = defineAsyncComponent(() => import('./components/SamplingDesigner.vue'))
@@ -40,6 +38,7 @@ const weatherByReservoir = ref<Record<string, WeatherResult>>({})
 const loading = ref(true)
 const weatherLoading = ref(false)
 const loadError = ref('')
+const appUpdateAvailable = ref(false)
 const weatherError = ref('')
 const basemapStatus = ref<'loading' | 'tianditu' | 'unavailable'>('loading')
 const searchQuery = ref('')
@@ -202,6 +201,7 @@ async function downloadPlanDocument() {
   documentDownloading.value = true
   documentError.value = ''
   try {
+    const { downloadObservationPlan } = await import('./services/document')
     const reservoirRecommendations = (orbitPayload.value?.items ?? [])
       .filter((item) => item.reservoir_id === selected.value!.properties.id)
       .map((item) => buildExperimentRecommendation(item, weather.value))
@@ -225,18 +225,14 @@ async function downloadAllPlans() {
   allReportDownloading.value = true
   allReportError.value = ''
   try {
-    let weatherByReservoir: Record<string, WeatherResult> = {}
-    let failedReservoirIds: string[] = []
-    try {
-      weatherByReservoir = await fetchAllWeather()
-      failedReservoirIds = reservoirs.value.map((feature) => feature.properties.id)
-        .filter((id) => !weatherByReservoir[id])
-    } catch {
-      // A transient cache/API failure must not prevent a downloadable report.
-      // The generated document will list every reservoir as weather-undetermined.
-      failedReservoirIds = reservoirs.value.map((feature) => feature.properties.id)
-    }
-    await downloadAllReservoirReport({
+    const reportModule = import('./services/all-reservoir-report')
+    const [report, weatherByReservoir] = await Promise.all([
+      reportModule,
+      fetchAllWeather().catch(() => ({} as Record<string, WeatherResult>)),
+    ])
+    const failedReservoirIds = reservoirs.value.map((feature) => feature.properties.id)
+      .filter((id) => !weatherByReservoir[id])
+    await report.downloadAllReservoirReport({
       reservoirs: reservoirs.value.map((feature) => feature.properties),
       orbitPayload: orbitPayload.value,
       weatherByReservoir,
@@ -362,8 +358,20 @@ async function loadApplication() {
   }
 }
 
-onMounted(loadApplication)
+function handlePreloadError() {
+  appUpdateAvailable.value = true
+}
+
+function refreshApplication() {
+  window.location.reload()
+}
+
+onMounted(() => {
+  window.addEventListener('vite:preloadError', handlePreloadError)
+  void loadApplication()
+})
 onBeforeUnmount(() => {
+  window.removeEventListener('vite:preloadError', handlePreloadError)
   map?.remove()
   map = null
 })
@@ -384,6 +392,11 @@ onBeforeUnmount(() => {
         <button class="logout-button" :disabled="loggingOut" @click="logout"><LogOut :size="14" />{{ loggingOut ? '正在退出' : '退出登录' }}</button>
       </div>
     </header>
+
+    <div v-if="appUpdateAvailable" class="app-update-notice" role="alert">
+      <span>功能资源加载失败，可能有新版本发布或网络暂时不可用。请刷新后重试。</span>
+      <button type="button" @click="refreshApplication">刷新页面</button>
+    </div>
 
     <div v-if="loading" class="full-state"><RefreshCw class="spin" :size="28" /><strong>正在加载观测计划数据</strong></div>
     <div v-else-if="loadError" class="full-state error"><CircleAlert :size="30" /><strong>{{ loadError }}</strong><button @click="loadApplication">重新加载</button></div>
@@ -435,8 +448,6 @@ onBeforeUnmount(() => {
           <div class="detail-title"><div><h2>{{ selected.properties.name_cn }}</h2><p><MapPinned :size="14" />{{ selected.properties.city }} · {{ selected.properties.area_km2.toFixed(2) }} km²</p><p class="detail-basin">{{ selected.properties.basin }}</p></div><button class="sampling-entry" @click="openSampling"><MapPinned :size="15" />点位设计</button></div>
           <div class="data-freshness"><span>轨道生成 {{ formatTimestamp(orbitPayload?.generated_at) }}</span><span>轨道历元 {{ formatTimestamp(orbitPayload?.element_epoch_latest) }}</span></div>
         </section>
-
-        <section class="notice"><CircleAlert :size="16" /><p>推荐日期先按卫星完整覆盖过境窗口匹配中央气象台当天预报，仅保留白天天气严格为“晴”的窗口。耀光风险继续作为现场参考，不再改变晴天筛选结果；卫星实际成像仍需出发前核验。</p></section>
 
         <section class="all-report-card">
           <div><p class="eyebrow">SUNNY RESERVOIRS · 7 DAYS</p><h3>7天内满足条件的水库方案</h3><span>仅保留白天晴 · 按四类卫星分组</span></div>
@@ -513,6 +524,7 @@ onBeforeUnmount(() => {
         </section>
 
         <footer><CalendarCheck :size="14" />天气为中央气象台未来7天文字预报 · 每天09:00更新缓存 · 耀光角越小风险越高 · 所有时间均为北京时间</footer>
+        <section class="notice"><CircleAlert :size="16" /><p>推荐日期先按卫星完整覆盖过境窗口匹配中央气象台当天预报，仅保留白天天气严格为“晴”的窗口。耀光风险继续作为现场参考，不再改变晴天筛选结果；卫星实际成像仍需出发前核验。</p></section>
       </aside>
     </div>
     <SamplingDesigner v-if="samplingOpen && selected" :reservoirs="reservoirs" :selected="selected" @select="selectReservoir" @close="closeSampling" />
@@ -520,6 +532,8 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
+.app-update-notice{position:fixed;z-index:2000;top:12px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:12px;width:max-content;max-width:calc(100% - 24px);padding:12px 16px;border:1px solid var(--accent-border);border-radius:8px;background:var(--panel);color:var(--text);box-shadow:0 4px 20px rgba(15,23,42,.15);font-size:13px}
+.app-update-notice button{flex:none;padding:7px 10px;border:0;border-radius:6px;background:var(--primary);color:#fff;cursor:pointer}
 .basin-filters{display:flex;flex-wrap:wrap;gap:6px;margin:0 3px 12px}
 .basin-filters button{display:flex;align-items:center;gap:5px;padding:6px 8px;border:1px solid var(--line-strong);border-radius:6px;background:var(--surface);color:var(--muted);font-size:10px;cursor:pointer}
 .basin-filters button:hover{border-color:var(--accent-border);color:var(--accent-ink);background:var(--panel)}

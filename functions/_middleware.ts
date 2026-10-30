@@ -23,7 +23,21 @@ export const onRequest: PagesFunction<Env> = async (context) => {
 
   const response = await context.next()
   const protectedResponse = new Response(response.body, response)
-  protectedResponse.headers.set('Cache-Control', 'private, no-store, max-age=0')
+  const canCache = (context.request.method === 'GET' || context.request.method === 'HEAD') &&
+    (response.status === 200 || response.status === 304)
+  const contentType = response.headers.get('Content-Type') ?? ''
+  // Only versioned code is fresh without revalidation. Data must still pass
+  // authentication and ETag revalidation so daily updates are visible on reopen.
+  const isVersionedAsset = /^\/assets\/[^/]+-[\w-]{8}\.(js|css)$/.test(url.pathname) &&
+    (response.status === 304 || /^(application\/javascript|text\/(javascript|css))\b/i.test(contentType))
+  const isObservationData = /^\/data\/[^/]+\.(json|geojson)$/.test(url.pathname) &&
+    (response.status === 304 || /^application\/(json|geo\+json)\b/i.test(contentType))
+  protectedResponse.headers.set('Cache-Control', canCache && isVersionedAsset
+    ? 'private, max-age=31536000, immutable'
+    : canCache && isObservationData
+      ? 'private, no-cache'
+      : 'private, no-store, max-age=0')
   protectedResponse.headers.append('Vary', 'Cookie')
+  protectedResponse.headers.append('Vary', 'Authorization')
   return protectedResponse
 }

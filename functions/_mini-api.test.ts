@@ -43,7 +43,7 @@ describe('mini program private website access', () => {
   })
   it('protects weather, orbit and map routes; only login, favicon and POST session are public', async () => {
     const env = environment(), next = vi.fn(async () => new Response('protected'))
-    for (const path of ['/api/weather?all=1', '/data/orbit-passes.json', '/api/map-tile?layer=vec&z=8&x=1&y=1', '/api/session']) {
+    for (const path of ['/api/weather?all=1', '/data/orbit-passes.json', '/assets/index-Ab12cd34.js', '/api/map-tile?layer=vec&z=8&x=1&y=1', '/api/session']) {
       const response = await onRequest({ request: new Request(`https://site.test${path}`), env, next } as unknown as Parameters<typeof onRequest>[0])
       expect(response.status).toBe(401)
     }
@@ -58,6 +58,51 @@ describe('mini program private website access', () => {
     const token = await createSessionToken('test@example.com', env.AUTH_SESSION_SECRET)
     const response = await onRequest({ request: new Request('https://site.test/data/orbit-passes.json', { headers: { Authorization: `Bearer ${token}` } }), env, next } as unknown as Parameters<typeof onRequest>[0])
     expect(await response.text()).toBe('protected'); expect(response.headers.get('Cache-Control')).toContain('private')
+  })
+})
+describe('authenticated browser caching', () => {
+  const serve = async (path: string, response: Response, method = 'GET') => {
+    const env = environment()
+    const token = await createSessionToken('test@example.com', env.AUTH_SESSION_SECRET)
+    return onRequest({ request: new Request(`https://site.test${path}`, {
+      method, headers: { Cookie: sessionCookie(token), 'If-None-Match': '"data-v1"' },
+    }), env, next: async () => response } as unknown as Parameters<typeof onRequest>[0])
+  }
+
+  it.each([
+    ['/assets/index-Ab12cd34.js', 'application/javascript'],
+    ['/assets/index-Ab12cd34.css', 'text/css; charset=utf-8'],
+  ])('reuses versioned code privately: %s', async (path, contentType) => {
+    const response = await serve(path, new Response('asset', { headers: { 'Content-Type': contentType } }))
+    expect(response.headers.get('Cache-Control')).toBe('private, max-age=31536000, immutable')
+    expect(response.headers.get('Vary')).toContain('Cookie')
+    expect(response.headers.get('Vary')).toContain('Authorization')
+  })
+
+  it.each(['/data/orbit-passes.json', '/data/reservoirs.geojson'])(
+    'requires fresh authentication and revalidation for %s', async (path) => {
+      const response = await serve(path, new Response('{}', {
+        headers: { 'Content-Type': 'application/json', ETag: '"data-v1"' },
+      }))
+      expect(response.headers.get('Cache-Control')).toBe('private, no-cache')
+      expect(response.headers.get('ETag')).toBe('"data-v1"')
+      const unchanged = await serve(path, new Response(null, { status: 304, headers: { ETag: '"data-v1"' } }))
+      expect(unchanged.status).toBe(304)
+      expect(unchanged.headers.get('Cache-Control')).toBe('private, no-cache')
+    },
+  )
+
+  it.each([
+    ['/', 'text/html', 200, 'GET'],
+    ['/assets/index-Ab12cd34.js', 'text/html', 200, 'GET'],
+    ['/assets/unversioned.js', 'application/javascript', 200, 'GET'],
+    ['/assets/index-Ab12cd34.js', 'application/javascript', 404, 'GET'],
+    ['/data/orbit-passes.json', 'application/json', 500, 'GET'],
+    ['/api/weather?all=1', 'application/json', 200, 'GET'],
+    ['/data/orbit-passes.json', 'application/json', 200, 'POST'],
+  ])('does not store dynamic pages, errors or writes: %s %s %s %s', async (path, contentType, status, method) => {
+    const response = await serve(path, new Response('body', { status, headers: { 'Content-Type': contentType } }), method)
+    expect(response.headers.get('Cache-Control')).toContain('no-store')
   })
 })
 describe('Tianditu tile route', () => {
